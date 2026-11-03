@@ -86,32 +86,60 @@ final class Planablage {
         return o
     }()
 
+    /// Der Verbund, dessen Pläne gerade gezeigt werden.
     var verbund: Verbund?
+    /// Der Verbund am Standort – auch wenn von Hand ein anderer gewählt ist.
+    var automatisch: Verbund?
+    /// Von Hand gewählter Verbund (Kürzel); nil heißt: automatisch nach Standort.
+    private(set) var wahl: String? = UserDefaults.standard.string(forKey: "verbundWahl")
     var plaene: [Netzplan] = []
-    /// Fertig heruntergeladene Pläne.
-    var bereit: Set<String> = []
+    /// Zählt fertige Downloads hoch, damit die Ansicht neu nachsieht, welche Pläne da sind.
+    private var geladen = 0
+    /// Nur der neueste Ladevorgang darf Ergebnisse eintragen – sonst überschreiben sich zwei beim schnellen Umschalten.
+    private var lauf = 0
     private var stand: (String, [String], Date)?
+    private var letzterOrt: (CLLocationCoordinate2D, [String])?
 
     init() {
         plaene = Ablage.lesen([Netzplan].self, "netzplaene") ?? []
-        bereit = Set(plaene.filter { FileManager.default.fileExists(atPath: $0.datei.path) }.map(\.id))
     }
 
-    func aktualisieren(bei o: CLLocationCoordinate2D, orte: [String]) async {
-        let v = Verbund.an(o)
+    /// Liegt der Plan schon auf dem Gerät?
+    func istBereit(_ p: Netzplan) -> Bool {
+        _ = geladen
+        return FileManager.default.fileExists(atPath: p.datei.path)
+    }
+
+    func aktualisieren(bei o: CLLocationCoordinate2D?, orte: [String]) async {
+        if let o {
+            letzterOrt = (o, orte)
+            automatisch = Verbund.an(o)
+        }
+        let v = wahl.flatMap { k in Verbund.alle.first { $0.kuerzel == k } } ?? automatisch
+        // Ortspläne nur, wenn der Verbund zum Standort gehört.
+        let orte = v?.kuerzel == automatisch?.kuerzel ? orte : []
+        lauf += 1
+        let meiner = lauf
+        if let alt = verbund?.kuerzel, alt != v?.kuerzel { plaene = [] }
         verbund = v
-        guard let v else { return }
+        guard let v else { plaene = []; return }
         // Höchstens alle sechs Stunden neu nachsehen, außer Verbund oder Ort haben gewechselt.
         if let s = stand, s.0 == v.kuerzel, s.1 == orte, Date.now.timeIntervalSince(s.2) < 6 * 3600 { return }
         let liste = await Planablage.suchen(v, orte: orte)
-        guard !liste.isEmpty else { return }
+        guard meiner == lauf, !liste.isEmpty else { return }
         stand = (v.kuerzel, orte, .now)
         plaene = liste
         Ablage.schreiben(liste, "netzplaene")
-        bereit = Set(liste.filter { FileManager.default.fileExists(atPath: $0.datei.path) }.map(\.id))
-        for p in liste where !bereit.contains(p.id) {
-            if await Planablage.herunterladen(p) { bereit.insert(p.id) }
+        for p in liste where !istBereit(p) {
+            if await Planablage.herunterladen(p) { geladen += 1 }
         }
+    }
+
+    /// Anderen Verbund von Hand wählen – nil schaltet zurück auf automatisch.
+    func waehlen(_ kuerzel: String?) async {
+        wahl = kuerzel
+        UserDefaults.standard.set(kuerzel, forKey: "verbundWahl")
+        await aktualisieren(bei: letzterOrt?.0, orte: letzterOrt?.1 ?? [])
     }
 
     private static func herunterladen(_ p: Netzplan) async -> Bool {

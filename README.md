@@ -17,6 +17,9 @@ Eine schlichte Fahrplan-App fürs iPhone. Beim Öffnen zeigt sie sofort, was an 
   Netzpläne gibt es bisher für Berlin-Brandenburg (VBB), Hamburg (HVV), München (MVV), Rhein-Main (RMV), Rhein-Ruhr (VRR),
   Köln/Bonn (VRS), Stuttgart (VVS) und Dresden (VVO). Jeder Verbund stellt seine Pläne selbst ins Netz; die App liest dafür
   die Übersichtsseiten der Verbünde.
+  Welcher Verbund gilt, erkennt die App am Standort (Ortspfeil vor dem Namen). Ein Tipp auf den Namen lässt einen
+  anderen Verbund wählen (Stecknadel) oder zurück auf „Automatisch“ stellen. Das betrifft nur die Netzpläne –
+  Abfahrten und Verbindungen kommen immer vom tatsächlichen Standort.
 - Beim ersten Start erklärt ein kleiner Kasten, was geht.
 - **Antippen einer Abfahrt** zeigt die weiteren Halte mit Uhrzeit. **Antippen des Haltestellennamens** öffnet den Fußweg in Apple Karten; langes Drücken bietet „Merken“ an.
 - **Suche unten („Wohin?“):** Verbindungen von hier, ab jetzt. Gemerkte Orte („Zuhause“, „Arbeit“ …) stehen ganz oben. Ein Tipp auf eine Verbindung klappt die einzelnen Schritte auf; weiter unten folgen spätere Verbindungen.

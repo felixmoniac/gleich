@@ -7,6 +7,44 @@ struct Uebersicht: View {
     var quelleVBB: Bool
     @State private var offen: Netzplan?
 
+    /// Verbundname; ein Tipp öffnet die Auswahl. Ortspfeil = automatisch, Stecknadel = von Hand gewählt.
+    private var verbundWahl: some View {
+        Menu {
+            Button {
+                Task { await plaene.waehlen(nil) }
+            } label: {
+                Label("Automatisch" + (plaene.automatisch.map { " (\($0.kuerzel))" } ?? ""),
+                      systemImage: plaene.wahl == nil ? "checkmark" : "location")
+            }
+            Divider()
+            ForEach(Verbund.alle.sorted { $0.name < $1.name }, id: \.kuerzel) { v in
+                Button {
+                    Task { await plaene.waehlen(v.kuerzel) }
+                } label: {
+                    if plaene.wahl == v.kuerzel {
+                        Label(v.name, systemImage: "checkmark")
+                    } else {
+                        Text(v.name)
+                    }
+                }
+            }
+        } label: {
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Image(systemName: plaene.wahl == nil ? "location.fill" : "pin.fill")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                Text(plaene.verbund?.name ?? "Fahrpläne für ganz Deutschland")
+                    .font(.title3.weight(.semibold))
+                    .foregroundStyle(.primary)
+                    .multilineTextAlignment(.leading)
+                Image(systemName: "chevron.up.chevron.down")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.tertiary)
+            }
+        }
+        .tint(.primary)
+    }
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 28) {
@@ -20,23 +58,17 @@ struct Uebersicht: View {
                 }
                 .padding(.top, 20)
 
-                HStack(spacing: 8) {
-                    Image(systemName: "location.fill")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                    Text(plaene.verbund?.name ?? "Fahrpläne für ganz Deutschland")
-                        .font(.title3.weight(.semibold))
-                }
+                verbundWahl
 
                 if !plaene.plaene.isEmpty {
                     LazyVGrid(columns: [GridItem(.flexible(), spacing: 14), GridItem(.flexible(), spacing: 14)],
                               spacing: 14) {
                         ForEach(plaene.plaene) { p in
                             Button { offen = p } label: {
-                                PlanKachel(plan: p, bereit: plaene.bereit.contains(p.id))
+                                PlanKachel(plan: p, bereit: plaene.istBereit(p))
                             }
                             .buttonStyle(.plain)
-                            .disabled(!plaene.bereit.contains(p.id))
+                            .disabled(!plaene.istBereit(p))
                         }
                     }
                 }
@@ -153,6 +185,7 @@ struct AnleitungKasten: View {
         ("Abfahrt antippen:", "alle weiteren Halte."),
         ("Haltestellenname antippen:", "Fußweg dorthin."),
         ("Lange drücken:", "Ort merken."),
+        ("Verbundname antippen:", "andere Netzpläne wählen."),
         ("Wohin?", "Verbindungen von hier, ab jetzt."),
     ]
 
