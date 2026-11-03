@@ -26,7 +26,7 @@ Eine schlichte Fahrplan-App fürs iPhone. Beim Öffnen zeigt sie sofort, was an 
   Abfahrten und Verbindungen kommen immer vom tatsächlichen Standort.
 - Beim ersten Start erklärt ein kleiner Kasten, was geht.
 - **Antippen einer Abfahrt** zeigt die weiteren Halte mit Uhrzeit. **Antippen des Haltestellennamens** öffnet den Fußweg in Apple Karten; langes Drücken bietet „Merken“ an.
-- **Suche unten („Wohin?“):** die nächsten sechs Verbindungen von hier, ab jetzt. Gemerkte Orte („Zuhause“, „Arbeit“ …) stehen ganz oben. Ein Tipp auf eine Verbindung klappt die einzelnen Schritte auf.
+- **Suche unten („Wohin?“):** die nächsten sechs Verbindungen von hier – ab jetzt oder ab einer Zeit, die man über die Uhr neben dem Suchfeld wählt. Die Suche schließt mit dem Kreuz oder einem Wisch nach unten. Gemerkte Orte („Zuhause“, „Arbeit“ …) stehen ganz oben. Ein Tipp auf eine Verbindung klappt die einzelnen Schritte auf.
 - **Aktualisieren:** beim Öffnen und durch Herunterziehen der Liste. Beim Laden tuckert eine kleine Dampflok.
 - **Widgets:** für den Home-Bildschirm (drei Abfahrten) und den Sperrbildschirm (zwei Abfahrten).
 - Ist die nächste Haltestelle mehr als 5 km entfernt, sagt die App das deutlich.

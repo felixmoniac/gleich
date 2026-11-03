@@ -186,7 +186,7 @@ struct AnleitungKasten: View {
         ("Haltestellenname antippen:", "Fußweg dorthin."),
         ("Lange drücken:", "Ort merken."),
         ("Verbundname antippen:", "andere Netzpläne wählen."),
-        ("Wohin?", "Verbindungen von hier, ab jetzt."),
+        ("Wohin?", "Verbindungen von hier; die Uhr daneben wählt die Abfahrtszeit."),
     ]
 
     var body: some View {

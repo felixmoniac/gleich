@@ -3,7 +3,7 @@ import SwiftUI
 struct Start: View {
     @State private var umgebung = Umgebung()
     @State private var merkliste = Merkliste()
-    @State private var pfad: [Ziel] = []
+    @State private var pfad: [Fahrtwunsch] = []
     @State private var suchtGerade = false
     @AppStorage("anleitungGesehen") private var anleitungGesehen = false
     @Environment(\.scenePhase) private var szene
@@ -12,22 +12,22 @@ struct Start: View {
         NavigationStack(path: $pfad) {
             inhalt
                 .toolbar(.hidden, for: .navigationBar)
-                .navigationDestination(for: Ziel.self) { ziel in
-                    VerbindungenSeite(ziel: ziel, standort: umgebung.standort)
+                .navigationDestination(for: Fahrtwunsch.self) { w in
+                    VerbindungenSeite(ziel: w.ziel, ab: w.ab, standort: umgebung.standort)
                 }
         }
         .environment(merkliste)
-        .overlay {
-            if suchtGerade {
-                SuchSeite(standort: umgebung.standort) { ziel in
-                    suchtGerade = false
-                    pfad = [ziel]
-                } schliessen: {
-                    suchtGerade = false
-                }
-                .environment(merkliste)
-                .transition(.opacity.combined(with: .move(edge: .bottom)))
+        // Die Suche kommt als Blatt von unten – ein Wisch nach unten bringt zurück zur Startseite.
+        .sheet(isPresented: $suchtGerade) {
+            SuchSeite(standort: umgebung.standort) { wunsch in
+                suchtGerade = false
+                pfad = [wunsch]
+            } schliessen: {
+                suchtGerade = false
             }
+            .environment(merkliste)
+            .presentationDetents([.large])
+            .presentationDragIndicator(.visible)
         }
         .overlay {
             if !anleitungGesehen {
@@ -35,7 +35,6 @@ struct Start: View {
                     .transition(.opacity)
             }
         }
-        .animation(.smooth(duration: 0.25), value: suchtGerade)
         .onChange(of: szene, initial: true) { _, s in
             if s == .active { Task { await umgebung.allesNeu() } }
         }

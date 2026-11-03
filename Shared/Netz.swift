@@ -63,6 +63,17 @@ enum Zeit {
         return f
     }()
 
+    /// „14:30“, „morgen 8:15“ oder „Fr. 8:15“ – für gewählte Abfahrtszeiten.
+    static func wann(_ d: Date) -> String {
+        let k = Calendar.current
+        if k.isDateInToday(d) { return uhr.string(from: d) }
+        if k.isDateInTomorrow(d) { return "morgen " + uhr.string(from: d) }
+        let tag = DateFormatter()
+        tag.locale = Locale(identifier: "de_DE")
+        tag.dateFormat = "EE d.M. H:mm"
+        return tag.string(from: d)
+    }
+
     /// „jetzt“, „4 Min“ oder ab einer Stunde die Uhrzeit.
     static func bis(_ d: Date, ab jetzt: Date = .now) -> String {
         let min = Int((d.timeIntervalSince(jetzt) / 60).rounded(.down))

@@ -102,6 +102,12 @@ struct Verbindung: Hashable, Identifiable {
     var anGeplant: Date { abschnitte.last?.anGeplant ?? .now }
 }
 
+/// Was gesucht wird: wohin, und ab wann (nil = jetzt).
+struct Fahrtwunsch: Hashable {
+    var ziel: Ziel
+    var ab: Date?
+}
+
 /// Ein Ziel für die Suche: Haltestelle, Adresse oder Ort.
 struct Ziel: Codable, Hashable, Identifiable {
     var id: String

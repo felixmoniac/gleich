@@ -176,10 +176,12 @@ enum Transitous {
         var weiter: String?
     }
 
-    static func verbindungen(von start: CLLocationCoordinate2D, nach ziel: Ziel, weiter: String? = nil) async throws -> Verbindungen {
+    static func verbindungen(von start: CLLocationCoordinate2D, nach ziel: Ziel, ab: Date? = nil,
+                             weiter: String? = nil) async throws -> Verbindungen {
         let j = try await Netz.json(basis, "/v5/plan", [
             "fromPlace": "\(start.latitude),\(start.longitude)",
             "toPlace": ziel.anfrage,
+            "time": ab.map(Zeit.schreiben),
             "pageCursor": weiter,
             "numItineraries": "6",
             "withFares": "false",

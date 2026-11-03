@@ -1,8 +1,9 @@
 import SwiftUI
 
-/// Verbindungen von hier zum Ziel, ab jetzt. Weiter unten kommen spätere.
+/// Die nächsten Verbindungen von hier zum Ziel – ab jetzt oder ab der gewählten Zeit.
 struct VerbindungenSeite: View {
     var ziel: Ziel
+    var ab: Date?
     var standort: Standort
 
     @State private var liste: [Verbindung] = []
@@ -22,7 +23,14 @@ struct VerbindungenSeite: View {
                 }
                 .padding(.horizontal, 20)
                 .padding(.top, 8)
-                .padding(.bottom, 10)
+                .padding(.bottom, ab == nil ? 10 : 2)
+                if let ab {
+                    Text("ab " + Zeit.wann(ab))
+                        .font(.headline)
+                        .foregroundStyle(.secondary)
+                        .padding(.horizontal, 20)
+                        .padding(.bottom, 10)
+                }
 
                 LazyVStack(spacing: 0) {
                     ForEach(liste) { v in
@@ -45,7 +53,7 @@ struct VerbindungenSeite: View {
         defer { laedt = false }
         guard let ort = await standort.frisch() else { return }
         do {
-            let e = try await Transitous.verbindungen(von: ort.coordinate, nach: ziel)
+            let e = try await Transitous.verbindungen(von: ort.coordinate, nach: ziel, ab: ab)
             liste = Array(e.liste.filter { $0.an > .now }.prefix(6))
             ohneNetz = false
         } catch {

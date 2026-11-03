@@ -3,13 +3,16 @@ import SwiftUI
 /// Suche nach einem Ziel. Gemerkte Orte stehen oben, das Eingabefeld unten.
 struct SuchSeite: View {
     var standort: Standort
-    var gewaehlt: (Ziel) -> Void
+    var gewaehlt: (Fahrtwunsch) -> Void
     var schliessen: () -> Void
 
     @Environment(Merkliste.self) private var merkliste
     @State private var text = ""
     @State private var treffer: [Ziel] = []
     @State private var sucht = false
+    /// Gewählte Abfahrtszeit; nil heißt jetzt.
+    @State private var ab: Date?
+    @State private var waehltZeit = false
     @FocusState private var fokus: Bool
 
     @State private var zuMerken: Ziel?
@@ -26,7 +29,7 @@ struct SuchSeite: View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 0) {
                 ForEach(gemerkte) { g in
-                    Button { gewaehlt(g.ziel) } label: {
+                    Button { gewaehlt(Fahrtwunsch(ziel: g.ziel, ab: ab)) } label: {
                         ZielZeile(symbol: g.symbol, name: g.name,
                                   zusatz: g.name == g.ziel.name ? g.ziel.zusatz : g.ziel.name, betont: true)
                     }
@@ -37,7 +40,7 @@ struct SuchSeite: View {
                     }
                 }
                 ForEach(treffer) { z in
-                    Button { gewaehlt(z) } label: {
+                    Button { gewaehlt(Fahrtwunsch(ziel: z, ab: ab)) } label: {
                         ZielZeile(symbol: z.haltID != nil ? "tram.fill" : "mappin", name: z.name, zusatz: z.zusatz)
                     }
                     .buttonStyle(.plain)
@@ -80,12 +83,29 @@ struct SuchSeite: View {
                     .focused($fokus)
                     .submitLabel(.search)
                     .autocorrectionDisabled()
-                    .onSubmit { if let erster = gemerkte.first?.ziel ?? treffer.first { gewaehlt(erster) } }
+                    .onSubmit {
+                        if let erster = gemerkte.first?.ziel ?? treffer.first { gewaehlt(Fahrtwunsch(ziel: erster, ab: ab)) }
+                    }
             }
             .font(.body.weight(.medium))
             .padding(.horizontal, 18)
             .frame(height: 50)
             .glassEffect(.regular, in: Capsule())
+
+            // Abfahrtszeit: zeigt „Jetzt“ oder die gewählte Zeit.
+            Button { waehltZeit = true } label: {
+                HStack(spacing: 5) {
+                    Image(systemName: "clock")
+                    Text(ab.map(Zeit.wann) ?? "Jetzt")
+                        .lineLimit(1)
+                }
+                .font(.subheadline.weight(.semibold))
+                .padding(.horizontal, 14)
+                .frame(height: 50)
+                .contentShape(Capsule())
+            }
+            .buttonStyle(.plain)
+            .glassEffect(.regular.interactive(), in: Capsule())
 
             Button(action: schliessen) {
                 Image(systemName: "xmark")
@@ -97,6 +117,11 @@ struct SuchSeite: View {
         }
         .padding(.horizontal, 20)
         .padding(.bottom, 6)
+        .sheet(isPresented: $waehltZeit) {
+            ZeitWahl(ab: $ab)
+                .presentationDetents([.height(340)])
+                .presentationDragIndicator(.visible)
+        }
     }
 
     private func suchen() async {
@@ -140,5 +165,40 @@ struct ZielZeile: View {
         .padding(.horizontal, 20)
         .padding(.vertical, 10)
         .contentShape(Rectangle())
+    }
+}
+
+/// Abfahrtszeit wählen – oder zurück auf „Jetzt“.
+struct ZeitWahl: View {
+    @Binding var ab: Date?
+    @State private var zeit = Date.now
+    @Environment(\.dismiss) private var schliessen
+
+    var body: some View {
+        VStack(spacing: 16) {
+            DatePicker("Abfahrt", selection: $zeit, in: Date.now..., displayedComponents: [.date, .hourAndMinute])
+                .datePickerStyle(.wheel)
+                .labelsHidden()
+                .environment(\.locale, Locale(identifier: "de_DE"))
+            HStack(spacing: 12) {
+                Button {
+                    ab = nil
+                    schliessen()
+                } label: {
+                    Text("Jetzt").frame(maxWidth: .infinity).frame(height: 44)
+                }
+                .buttonStyle(.glass)
+                Button {
+                    ab = zeit
+                    schliessen()
+                } label: {
+                    Text("Fertig").fontWeight(.semibold).frame(maxWidth: .infinity).frame(height: 44)
+                }
+                .buttonStyle(.glassProminent)
+            }
+        }
+        .padding(.horizontal, 20)
+        .padding(.top, 24)
+        .onAppear { zeit = ab ?? .now }
     }
 }
