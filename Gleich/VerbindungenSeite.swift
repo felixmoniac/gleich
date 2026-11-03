@@ -3,13 +3,24 @@ import SwiftUI
 /// Die nächsten Verbindungen von hier zum Ziel – ab jetzt oder ab der gewählten Zeit.
 struct VerbindungenSeite: View {
     var ziel: Ziel
-    var ab: Date?
     var standort: Standort
 
+    /// Gewählte Abfahrtszeit; nil heißt jetzt. Lässt sich unten ändern.
+    @State private var ab: Date?
+    @State private var waehltZeit = false
     @State private var liste: [Verbindung] = []
     @State private var laedt = false
     @State private var ohneNetz = false
     @State private var offen: String?
+    /// Nur der neueste Ladevorgang trägt ein – falls die Zeit schnell hintereinander geändert wird.
+    @State private var lauf = 0
+    @Environment(\.dismiss) private var zurueck
+
+    init(ziel: Ziel, ab: Date?, standort: Standort) {
+        self.ziel = ziel
+        self.standort = standort
+        _ab = State(initialValue: ab)
+    }
 
     var body: some View {
         LokScroll(laedt: laedt) { await laden() } inhalt: {
@@ -23,14 +34,7 @@ struct VerbindungenSeite: View {
                 }
                 .padding(.horizontal, 20)
                 .padding(.top, 8)
-                .padding(.bottom, ab == nil ? 10 : 2)
-                if let ab {
-                    Text("ab " + Zeit.wann(ab))
-                        .font(.headline)
-                        .foregroundStyle(.secondary)
-                        .padding(.horizontal, 20)
-                        .padding(.bottom, 10)
-                }
+                .padding(.bottom, 10)
 
                 LazyVStack(spacing: 0) {
                     ForEach(liste) { v in
@@ -42,22 +46,77 @@ struct VerbindungenSeite: View {
             }
             .padding(.bottom, 30)
         }
-        .navigationBarTitleDisplayMode(.inline)
-        .toolbar(.visible, for: .navigationBar)
-        .task { if liste.isEmpty { await laden() } }
+        .toolbar(.hidden, for: .navigationBar)
+        .safeAreaInset(edge: .bottom, spacing: 0) { leiste }
+        .sheet(isPresented: $waehltZeit) {
+            ZeitWahl(ab: $ab)
+                .presentationDetents([.height(340)])
+                .presentationDragIndicator(.visible)
+        }
+        .task(id: ab) {
+            offen = nil
+            await laden()
+        }
+    }
+
+    /// Unten: zurück, Abfahrtszeit ändern, spätere Verbindungen.
+    private var leiste: some View {
+        HStack(spacing: 10) {
+            Button { zurueck() } label: {
+                Image(systemName: "chevron.left")
+                    .font(.body.weight(.semibold))
+                    .frame(width: 50, height: 50)
+                    .contentShape(Circle())
+            }
+            .buttonStyle(.plain)
+            .glassEffect(.regular.interactive(), in: Circle())
+            .accessibilityLabel("Zurück")
+
+            ZeitKnopf(ab: ab) { waehltZeit = true }
+
+            Spacer(minLength: 0)
+
+            Button {
+                // Ab eine Minute nach der letzten gezeigten Abfahrt weitersuchen
+                if let letzte = liste.last?.ab { ab = letzte.addingTimeInterval(60) }
+            } label: {
+                HStack(spacing: 5) {
+                    Text("Später")
+                    Image(systemName: "chevron.right")
+                }
+                .font(.subheadline.weight(.semibold))
+                .padding(.horizontal, 16)
+                .frame(height: 50)
+                .contentShape(Capsule())
+            }
+            .buttonStyle(.plain)
+            .glassEffect(.regular.interactive(), in: Capsule())
+            .disabled(liste.isEmpty)
+            .opacity(liste.isEmpty ? 0.4 : 1)
+        }
+        .padding(.horizontal, 20)
+        .padding(.bottom, 6)
+        .padding(.top, 20)
+        .background(alignment: .bottom) {
+            LinearGradient(colors: [Color(.systemBackground).opacity(0), Color(.systemBackground)],
+                           startPoint: .top, endPoint: UnitPoint(x: 0.5, y: 0.45))
+                .ignoresSafeArea()
+        }
     }
 
     private func laden() async {
-        guard !laedt else { return }
+        lauf += 1
+        let meiner = lauf
         laedt = true
-        defer { laedt = false }
+        defer { if lauf == meiner { laedt = false } }
         guard let ort = await standort.frisch() else { return }
         do {
             let e = try await Transitous.verbindungen(von: ort.coordinate, nach: ziel, ab: ab)
+            guard lauf == meiner else { return }
             liste = Array(e.liste.filter { $0.an > .now }.prefix(6))
             ohneNetz = false
         } catch {
-            ohneNetz = true
+            if lauf == meiner { ohneNetz = true }
         }
     }
 }

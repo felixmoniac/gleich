@@ -2,7 +2,14 @@ import SwiftUI
 
 /// Suche nach einem Ziel. Gemerkte Orte stehen oben, das Eingabefeld unten.
 struct SuchSeite: View {
+    /// Wofür gesucht wird: eine Fahrt – oder ein Ort, der gemerkt werden soll (Zuhause, Arbeit oder ganz neu).
+    enum Zweck: Equatable {
+        case fahrt
+        case merken(String?)
+    }
+
     var standort: Standort
+    var zweck: Zweck = .fahrt
     var gewaehlt: (Fahrtwunsch) -> Void
     var schliessen: () -> Void
 
@@ -21,16 +28,43 @@ struct SuchSeite: View {
     @State private var name = ""
 
     private var gemerkte: [Gemerkt] {
+        guard zweck == .fahrt else { return [] }
         let t = text.trimmingCharacters(in: .whitespaces).lowercased()
         guard !t.isEmpty else { return merkliste.orte }
         return merkliste.orte.filter { $0.name.lowercased().contains(t) || $0.ziel.name.lowercased().contains(t) }
+    }
+
+    private var suchtNoch: Bool { text.trimmingCharacters(in: .whitespaces).isEmpty }
+
+    private var platzhalter: String {
+        switch zweck {
+        case .fahrt: "Wohin?"
+        case .merken(nil): "Welcher Ort?"
+        case .merken(let name?): Gemerkt.art(name) == "arbeit" ? "Wo ist die Arbeit?" : "Wo ist \(name)?"
+        }
+    }
+
+    /// Ein Ziel wurde angetippt.
+    private func waehlen(_ z: Ziel) {
+        rauch.ruht = true
+        rauch.leeren()
+        switch zweck {
+        case .fahrt:
+            gewaehlt(Fahrtwunsch(ziel: z, ab: ab))
+        case .merken(let name?):
+            merkliste.festlegen(z, als: name)
+            gewaehlt(Fahrtwunsch(ziel: z, ab: nil))
+        case .merken(nil):
+            name = z.name
+            zuMerken = z
+        }
     }
 
     var body: some View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 0) {
                 ForEach(gemerkte) { g in
-                    Button { gewaehlt(Fahrtwunsch(ziel: g.ziel, ab: ab)) } label: {
+                    Button { waehlen(g.ziel) } label: {
                         ZielZeile(symbol: g.symbol, name: g.name,
                                   zusatz: g.name == g.ziel.name ? g.ziel.zusatz : g.ziel.name, betont: true)
                     }
@@ -41,7 +75,7 @@ struct SuchSeite: View {
                     }
                 }
                 ForEach(treffer) { z in
-                    Button { gewaehlt(Fahrtwunsch(ziel: z, ab: ab)) } label: {
+                    Button { waehlen(z) } label: {
                         ZielZeile(symbol: z.haltID != nil ? "tram.fill" : "mappin", name: z.name, zusatz: z.zusatz)
                     }
                     .buttonStyle(.plain)
@@ -49,7 +83,7 @@ struct SuchSeite: View {
                         Button("Merken", systemImage: "star") { name = z.name; zuMerken = z }
                     }
                 }
-                if text.trimmingCharacters(in: .whitespaces).isEmpty {
+                if suchtNoch {
                     // Solange noch nichts gesucht ist: die Katze jagt ihren Lok-Schwanz.
                     KatzeImKreis(rauch: rauch)
                         .frame(maxWidth: .infinity)
@@ -64,9 +98,12 @@ struct SuchSeite: View {
             .padding(.top, 20)
         }
         .coordinateSpace(.named("suche"))
-        // Rauchringe und Sprüche über der ganzen Suche
-        .overlay { RauchBild(rauch: rauch) }
-        .onChange(of: text) { _, neu in if !neu.isEmpty { rauch.leeren() } }
+        // Rauchwolken und Sprüche über der ganzen Suche – sobald etwas getippt ist, sind sie weg.
+        .overlay { if suchtNoch { RauchBild(rauch: rauch).clipped() } }
+        .onChange(of: suchtNoch) { _, leer in
+            rauch.ruht = !leer
+            if !leer { rauch.leeren() }
+        }
         .scrollDismissesKeyboard(.interactively)
         .defaultScrollAnchor(.top)
         .background(.background)
@@ -75,7 +112,10 @@ struct SuchSeite: View {
         .task(id: text) { await suchen() }
         .alert("Merken als", isPresented: Binding(get: { zuMerken != nil }, set: { if !$0 { zuMerken = nil } })) {
             TextField("Name", text: $name)
-            Button("Merken") { if let z = zuMerken { merkliste.merken(z, als: name) } }
+            Button("Merken") {
+                if let z = zuMerken { merkliste.merken(z, als: name) }
+                if zweck != .fahrt { schliessen() }
+            }
             Button("Abbrechen", role: .cancel) { }
         }
         .alert("Umbenennen", isPresented: Binding(get: { zuBenennen != nil }, set: { if !$0 { zuBenennen = nil } })) {
@@ -87,30 +127,19 @@ struct SuchSeite: View {
 
     private var eingabe: some View {
         HStack(spacing: 10) {
-            // Abfahrtszeit: zeigt „Jetzt“ oder die gewählte Zeit.
-            Button { waehltZeit = true } label: {
-                HStack(spacing: 5) {
-                    Image(systemName: "clock")
-                    Text(ab.map(Zeit.wann) ?? "Jetzt")
-                        .lineLimit(1)
-                }
-                .font(.subheadline.weight(.semibold))
-                .padding(.horizontal, 14)
-                .frame(height: 50)
-                .contentShape(Capsule())
+            if zweck == .fahrt {
+                ZeitKnopf(ab: ab) { waehltZeit = true }
             }
-            .buttonStyle(.plain)
-            .glassEffect(.regular.interactive(), in: Capsule())
 
             HStack(spacing: 10) {
                 Image(systemName: "magnifyingglass")
                     .foregroundStyle(.secondary)
-                TextField("Wohin?", text: $text)
+                TextField(platzhalter, text: $text)
                     .focused($fokus)
                     .submitLabel(.search)
                     .autocorrectionDisabled()
                     .onSubmit {
-                        if let erster = gemerkte.first?.ziel ?? treffer.first { gewaehlt(Fahrtwunsch(ziel: erster, ab: ab)) }
+                        if let erster = gemerkte.first?.ziel ?? treffer.first { waehlen(erster) }
                     }
             }
             .font(.body.weight(.medium))
@@ -176,6 +205,28 @@ struct ZielZeile: View {
         .padding(.horizontal, 20)
         .padding(.vertical, 10)
         .contentShape(Rectangle())
+    }
+}
+
+/// Abfahrtszeit: zeigt „Jetzt“ oder die gewählte Zeit, ein Tipp lässt sie ändern.
+struct ZeitKnopf: View {
+    var ab: Date?
+    var aktion: () -> Void
+
+    var body: some View {
+        Button(action: aktion) {
+            HStack(spacing: 5) {
+                Image(systemName: "clock")
+                Text(ab.map(Zeit.wann) ?? "Jetzt")
+                    .lineLimit(1)
+            }
+            .font(.subheadline.weight(.semibold))
+            .padding(.horizontal, 14)
+            .frame(height: 50)
+            .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .glassEffect(.regular.interactive(), in: Capsule())
     }
 }
 

@@ -6,6 +6,7 @@ struct FahrtSeite: View {
     var ort: String?
     @State private var halte: [Zwischenhalt] = []
     @State private var laedt = true
+    @Environment(\.dismiss) private var schliessen
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -14,8 +15,19 @@ struct FahrtSeite: View {
                 Text(Namen.kurz(abfahrt.richtung, ort: ort))
                     .font(.title3.weight(.semibold))
                     .lineLimit(2)
+                Spacer(minLength: 0)
+                Button { schliessen() } label: {
+                    Image(systemName: "xmark")
+                        .font(.subheadline.weight(.semibold))
+                        .frame(width: 40, height: 40)
+                        .contentShape(Circle())
+                }
+                .buttonStyle(.plain)
+                .glassEffect(.regular.interactive(), in: Circle())
+                .accessibilityLabel("Schließen")
             }
-            .padding(.horizontal, 24)
+            .padding(.leading, 24)
+            .padding(.trailing, 16)
             .padding(.top, 28)
             .padding(.bottom, 12)
 

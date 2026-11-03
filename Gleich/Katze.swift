@@ -29,6 +29,8 @@ struct KatzeImKreis: View {
         .onTapGesture { losrennen(kurz: true) }
         .accessibilityHidden(true)
         .task { losrennen(kurz: false) }
+        // Verschwindet sie (es wird gesucht), hört auch der Rauch sofort auf.
+        .onDisappear { lauf += 1; laeuft = false }
     }
 
     /// Neuer Lauf ab der Stelle, an der sie gerade ist; Länge zufällig, damit sie woanders stehen bleibt.
