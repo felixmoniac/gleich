@@ -48,6 +48,12 @@ struct SuchSeite: View {
                         Button("Merken", systemImage: "star") { name = z.name; zuMerken = z }
                     }
                 }
+                if text.trimmingCharacters(in: .whitespaces).isEmpty {
+                    // Solange noch nichts gesucht ist: die Katze jagt ihren Lok-Schwanz.
+                    KatzeImKreis()
+                        .frame(maxWidth: .infinity)
+                        .padding(.top, gemerkte.isEmpty ? 150 : 40)
+                }
                 if sucht && treffer.isEmpty {
                     Lok(ruckelt: true)
                         .frame(maxWidth: .infinity)
@@ -76,6 +82,21 @@ struct SuchSeite: View {
 
     private var eingabe: some View {
         HStack(spacing: 10) {
+            // Abfahrtszeit: zeigt „Jetzt“ oder die gewählte Zeit.
+            Button { waehltZeit = true } label: {
+                HStack(spacing: 5) {
+                    Image(systemName: "clock")
+                    Text(ab.map(Zeit.wann) ?? "Jetzt")
+                        .lineLimit(1)
+                }
+                .font(.subheadline.weight(.semibold))
+                .padding(.horizontal, 14)
+                .frame(height: 50)
+                .contentShape(Capsule())
+            }
+            .buttonStyle(.plain)
+            .glassEffect(.regular.interactive(), in: Capsule())
+
             HStack(spacing: 10) {
                 Image(systemName: "magnifyingglass")
                     .foregroundStyle(.secondary)
@@ -91,21 +112,6 @@ struct SuchSeite: View {
             .padding(.horizontal, 18)
             .frame(height: 50)
             .glassEffect(.regular, in: Capsule())
-
-            // Abfahrtszeit: zeigt „Jetzt“ oder die gewählte Zeit.
-            Button { waehltZeit = true } label: {
-                HStack(spacing: 5) {
-                    Image(systemName: "clock")
-                    Text(ab.map(Zeit.wann) ?? "Jetzt")
-                        .lineLimit(1)
-                }
-                .font(.subheadline.weight(.semibold))
-                .padding(.horizontal, 14)
-                .frame(height: 50)
-                .contentShape(Capsule())
-            }
-            .buttonStyle(.plain)
-            .glassEffect(.regular.interactive(), in: Capsule())
 
             Button(action: schliessen) {
                 Image(systemName: "xmark")
