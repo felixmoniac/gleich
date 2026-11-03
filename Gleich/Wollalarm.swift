@@ -37,7 +37,7 @@ final class Wollalarm {
     private(set) var leben = 3
     private(set) var welle = 0
     private(set) var lokX: CGFloat = 195
-    /// Gedrückte Fahrtaste: −1 links, 0 steht, +1 rechts.
+    /// Stellung der Wippe: −1 ganz links, 0 steht, +1 ganz rechts – dazwischen stufenlos.
     var steuer: CGFloat = 0
     private(set) var lokWeg = 0.0
     private(set) var unverwundbarBis = 0.0
@@ -141,7 +141,7 @@ final class Wollalarm {
 
         // Lok fährt, solange eine Pfeiltaste gedrückt ist
         if zeit > unverwundbarBis - 0.6 {
-            let neu = lokX + steuer * CGFloat(260 * dt)
+            let neu = lokX + steuer * CGFloat(360 * dt)
             let rand: CGFloat = 30
             let begrenzt = min(max(neu, rand), feld.width - rand)
             lokWeg += Double(begrenzt - lokX) / 6
@@ -331,6 +331,9 @@ struct WollalarmSpiel: View {
             .padding(.top, 4)
         }
         .statusBarHidden()
+        // Berührungen am Bildschirmrand sofort ans Spiel geben, nicht erst auf Systemgesten warten
+        .defersSystemGestures(on: .all)
+        .persistentSystemOverlays(.hidden)
         .task {
             var vorher = Date.now
             while !Task.isCancelled {
@@ -342,18 +345,17 @@ struct WollalarmSpiel: View {
         }
     }
 
-    /// Unten: zwei Pfeiltasten zum Fahren (gedrückt halten), rechts die Dampftaste.
+    /// Unten: die Wippe zum Fahren, rechts die Dampftaste.
     private var tasten: some View {
         VStack {
             Spacer()
             HStack(spacing: 14) {
-                Fahrtaste(symbol: "arrowtriangle.left.fill") { spiel.steuer = $0 ? -1 : (spiel.steuer < 0 ? 0 : spiel.steuer) }
-                Fahrtaste(symbol: "arrowtriangle.right.fill") { spiel.steuer = $0 ? 1 : (spiel.steuer > 0 ? 0 : spiel.steuer) }
-                Spacer()
+                Wippe { spiel.steuer = $0 }
+                Spacer(minLength: 10)
                 Dampftaste { spiel.dampf() }
             }
             .padding(.horizontal, 22)
-            .padding(.bottom, 18)
+            .padding(.bottom, 30)
         }
     }
 
@@ -382,7 +384,7 @@ struct WollalarmSpiel: View {
             VStack(spacing: 14) {
                 Text("Wollalarm")
                     .font(.system(size: 44, weight: .heavy, design: .rounded))
-                Text("Pfeile: fahren · Dampf: pusten")
+                Text("Wippe: fahren · Dampf: pusten")
                     .foregroundStyle(.secondary)
                 Text("Tippen zum Start")
                     .font(.headline)
@@ -566,26 +568,48 @@ struct WollalarmSpiel: View {
 
 #Preview { WollalarmSpiel() }
 
-/// Pfeiltaste: meldet Drücken und Loslassen, damit die Lok fährt, solange man draufbleibt.
-private struct Fahrtaste: View {
-    var symbol: String
-    var gedrueckt: (Bool) -> Void
-    @State private var unten = false
+/// Wippe zum Fahren: Je weiter außen der Finger, desto schneller; in der Mitte steht die Lok.
+/// Man kann darüber gleiten, ohne loszulassen. Sie neigt sich zur gedrückten Seite.
+private struct Wippe: View {
+    var steuer: (CGFloat) -> Void
+    @State private var wert: CGFloat = 0
+    private let breite: CGFloat = 220, hoehe: CGFloat = 72
 
     var body: some View {
-        Image(systemName: symbol)
-            .font(.title2)
-            .frame(width: 68, height: 68)
-            .contentShape(Circle())
-            .glassEffect(.regular.interactive(), in: Circle())
-            .scaleEffect(unten ? 0.92 : 1)
-            .gesture(
-                DragGesture(minimumDistance: 0)
-                    .onChanged { _ in
-                        if !unten { unten = true; gedrueckt(true) }
-                    }
-                    .onEnded { _ in unten = false; gedrueckt(false) }
-            )
+        HStack {
+            Image(systemName: "arrowtriangle.left.fill")
+                .opacity(wert < 0 ? 1 : 0.45)
+            Spacer()
+            Capsule().frame(width: 6, height: 6).opacity(0.3)
+            Spacer()
+            Image(systemName: "arrowtriangle.right.fill")
+                .opacity(wert > 0 ? 1 : 0.45)
+        }
+        .font(.title2)
+        .padding(.horizontal, 24)
+        .frame(width: breite, height: hoehe)
+        .glassEffect(.regular, in: Capsule())
+        // Neigung wie bei einer echten Wippe
+        .rotation3DEffect(.degrees(Double(wert) * 14), axis: (x: 0, y: 1, z: 0), perspective: 0.6)
+        .contentShape(Capsule())
+        .gesture(
+            DragGesture(minimumDistance: 0)
+                .onChanged { w in
+                    let mitte = breite / 2
+                    var anteil = (w.location.x - mitte) / (mitte - 18)
+                    anteil = max(-1, min(1, anteil))
+                    // Kleiner ruhiger Bereich in der Mitte, außen spürbar schneller
+                    let betrag = max(0, (abs(anteil) - 0.12) / 0.88)
+                    let neu = (anteil < 0 ? -1 : 1) * pow(betrag, 1.3)
+                    wert = neu
+                    steuer(neu)
+                }
+                .onEnded { _ in
+                    wert = 0
+                    steuer(0)
+                }
+        )
+        .animation(.interactiveSpring(response: 0.12), value: wert)
     }
 }
 
@@ -598,9 +622,10 @@ private struct Dampftaste: View {
         Image(systemName: "smoke.fill")
             .font(.title)
             .frame(width: 80, height: 80)
+            .glassEffect(.regular, in: Circle())
             .contentShape(Circle())
-            .glassEffect(.regular.interactive(), in: Circle())
-            .scaleEffect(unten ? 0.9 : 1)
+            .scaleEffect(unten ? 0.88 : 1)
+            .animation(.interactiveSpring(response: 0.1), value: unten)
             .gesture(
                 DragGesture(minimumDistance: 0)
                     .onChanged { _ in
