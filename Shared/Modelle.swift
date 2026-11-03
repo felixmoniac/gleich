@@ -28,6 +28,10 @@ struct Haltestelle: Codable, Hashable, Identifiable {
     var breite: Double
     var laenge: Double
     var quelle: Quelle
+    /// Was hier fährt – soweit die Datenquelle es verrät.
+    var mittel: [Verkehrsmittel] = []
+    /// Linien, die hier halten (nur beim VBB bekannt).
+    var linien: [String] = []
 
     var koordinate: CLLocationCoordinate2D { .init(latitude: breite, longitude: laenge) }
     var ort: CLLocation { CLLocation(latitude: breite, longitude: laenge) }

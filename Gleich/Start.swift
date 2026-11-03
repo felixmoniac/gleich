@@ -5,6 +5,7 @@ struct Start: View {
     @State private var merkliste = Merkliste()
     @State private var pfad: [Ziel] = []
     @State private var suchtGerade = false
+    @AppStorage("anleitungGesehen") private var anleitungGesehen = false
     @Environment(\.scenePhase) private var szene
 
     var body: some View {
@@ -26,6 +27,12 @@ struct Start: View {
                 }
                 .environment(merkliste)
                 .transition(.opacity.combined(with: .move(edge: .bottom)))
+            }
+        }
+        .overlay {
+            if !anleitungGesehen {
+                AnleitungHinweis { withAnimation(.smooth) { anleitungGesehen = true } }
+                    .transition(.opacity)
             }
         }
         .animation(.smooth(duration: 0.25), value: suchtGerade)
@@ -58,7 +65,7 @@ struct Start: View {
     }
 
     private var kennungen: [String] {
-        (umgebung.jwd ? ["jwd"] : []) + umgebung.seiten.map(\.id)
+        ["uebersicht"] + (umgebung.jwd ? ["jwd"] : []) + umgebung.seiten.map(\.id)
     }
 
     @ViewBuilder private var seiten: some View {
@@ -76,6 +83,8 @@ struct Start: View {
             }
         } else {
             TabView(selection: $umgebung.seite) {
+                Uebersicht(plaene: umgebung.plaene, quelleVBB: umgebung.seiten.first?.halt.quelle == .vbb)
+                    .tag(Optional("uebersicht"))
                 if umgebung.jwd {
                     LokScroll(laedt: umgebung.laedt) { await umgebung.allesNeu() } inhalt: {
                         JWDSeite().padding(.top, 40)
@@ -102,9 +111,15 @@ struct Start: View {
         if alle.count > 1 {
             HStack(spacing: 7) {
                 ForEach(alle, id: \.self) { k in
-                    Circle()
-                        .fill(k == umgebung.seite ? Color.primary : Color.secondary.opacity(0.35))
-                        .frame(width: 7, height: 7)
+                    let farbe = k == umgebung.seite ? Color.primary : Color.secondary.opacity(0.35)
+                    if k == "uebersicht" {
+                        // Die Übersicht bekommt ein Zeichen statt eines Punkts.
+                        Image(systemName: "info.circle.fill")
+                            .font(.system(size: 9, weight: .bold))
+                            .foregroundStyle(farbe)
+                    } else {
+                        Circle().fill(farbe).frame(width: 7, height: 7)
+                    }
                 }
             }
             .animation(.smooth, value: umgebung.seite)

@@ -62,6 +62,7 @@ final class HaltModell: Identifiable {
 @Observable
 final class Umgebung {
     let standort = Standort()
+    let plaene = Planablage()
     var seiten: [HaltModell] = []
     var seite: String?
     var laedt = false
@@ -85,6 +86,7 @@ final class Umgebung {
         laedt = true
         defer { laedt = false }
         guard let ort = await standort.frisch() else { return }
+        defer { Task { await netzplaene(bei: ort) } }
         let weit = ortDerHaltestellen.map { $0.distance(from: ort) > 120 } ?? true
         if weit || seiten.isEmpty {
             do {
@@ -107,6 +109,16 @@ final class Umgebung {
             ohneNetz = a.ohneNetz
         }
         WidgetCenter.shared.reloadAllTimelines()
+    }
+
+    /// Netzpläne für den Verbund und den Ort, an dem man gerade ist.
+    private func netzplaene(bei ort: CLLocation) async {
+        var orte: [String] = []
+        if let p = try? await CLGeocoder().reverseGeocodeLocation(ort).first {
+            if let o = p.locality { orte.append(o) }
+        }
+        if let o = Namen.ort(unter: seiten.map(\.halt.name)) { orte.append(o) }
+        await plaene.aktualisieren(bei: ort.coordinate, orte: Array(Set(orte)).sorted())
     }
 
     func erreichbar(_ a: Abfahrt, an halt: Haltestelle, jetzt: Date) -> Bool {

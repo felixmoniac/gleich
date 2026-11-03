@@ -9,7 +9,15 @@ Eine schlichte Fahrplan-App fürs iPhone. Beim Öffnen zeigt sie sofort, was an 
   Eine rote Zeit heißt: Der Zug ist verspätet, angezeigt wird die tatsächliche Abfahrt.
   Blasse Zeilen schafft man zu Fuß wahrscheinlich nicht mehr – mit etwas Glück aber doch.
 - **Große Bahnhöfe** gelten als eine Haltestelle. Dann erscheinen oben kleine Symbole für die Verkehrsmittel (S, U, Tram, Bus, Zug); ein Tipp zeigt nur dieses Verkehrsmittel.
-- **Wischen nach links** zeigt die nächstgelegene Haltestelle, dann die übernächste.
+- **Wischen nach links** zeigt weitere Haltestellen – aber nur solche, an denen etwas fährt, das es an der nächsten nicht gibt:
+  erst in Gehweite, dann Bahnhöfe bis etwa 2 km (zum Beispiel der Regionalzug, der von der Bushaltestelle aus nicht fährt),
+  dann andere Buslinien bis 1 km. Höchstens vier Haltestellen; neben dem Namen steht, wie viele Minuten man zu Fuß braucht.
+- **Wischen nach rechts** öffnet die Übersicht: der Verkehrsverbund, in dem man gerade ist, seine Netzpläne und eine kurze Anleitung.
+  Die Netzpläne lädt die App von selbst herunter, sie sind danach auch ohne Netz da. Ein Tipp öffnet den Plan zum Zoomen.
+  Netzpläne gibt es bisher für Berlin-Brandenburg (VBB), Hamburg (HVV), München (MVV), Rhein-Main (RMV), Rhein-Ruhr (VRR),
+  Köln/Bonn (VRS), Stuttgart (VVS) und Dresden (VVO). Jeder Verbund stellt seine Pläne selbst ins Netz; die App liest dafür
+  die Übersichtsseiten der Verbünde.
+- Beim ersten Start erklärt ein kleiner Kasten, was geht.
 - **Antippen einer Abfahrt** zeigt die weiteren Halte mit Uhrzeit. **Antippen des Haltestellennamens** öffnet den Fußweg in Apple Karten; langes Drücken bietet „Merken“ an.
 - **Suche unten („Wohin?“):** Verbindungen von hier, ab jetzt. Gemerkte Orte („Zuhause“, „Arbeit“ …) stehen ganz oben. Ein Tipp auf eine Verbindung klappt die einzelnen Schritte auf; weiter unten folgen spätere Verbindungen.
 - **Aktualisieren:** beim Öffnen und durch Herunterziehen der Liste. Beim Laden tuckert eine kleine Dampflok.

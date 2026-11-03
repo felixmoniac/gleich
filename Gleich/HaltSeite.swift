@@ -74,6 +74,16 @@ struct HaltSeite: View {
                 }
                 Section("Daten: Transitous\(modell.halt.quelle == .vbb ? " · VBB" : "")") { }
             }
+            let fuss = Int((Fahrplan.gehzeit(von: umgebung.standort.ort, zu: modell.halt) / 60).rounded(.up))
+            if fuss > 1 {
+                HStack(spacing: 3) {
+                    Image(systemName: "figure.walk")
+                    Text("\(fuss) Min")
+                }
+                .font(.subheadline.weight(.medium))
+                .foregroundStyle(.secondary)
+                .fixedSize()
+            }
             if modell.ohneNetz || umgebung.ohneNetz {
                 Image(systemName: "icloud.slash")
                     .font(.title3)

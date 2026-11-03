@@ -30,19 +30,32 @@ enum VBB {
     }
 
     static func haltestellen(bei o: CLLocationCoordinate2D) async throws -> [Haltestelle] {
+        let nah = try await haltestellen(bei: o, meter: 2000, anzahl: 30)
+        if !nah.isEmpty { return nah }
+        // Nichts in der Nähe: nur noch die nächste suchen, damit „JWD“ erkannt wird.
+        return try await haltestellen(bei: o, meter: 8000, anzahl: 3)
+    }
+
+    private static func haltestellen(bei o: CLLocationCoordinate2D, meter: Int, anzahl: Int) async throws -> [Haltestelle] {
         let j = try await Netz.json(basis, "/locations/nearby", [
             "latitude": "\(o.latitude)",
             "longitude": "\(o.longitude)",
-            "results": "10",
-            "distance": "8000",
-            "linesOfStops": "false",
+            "results": "\(anzahl)",
+            "distance": "\(meter)",
+            "linesOfStops": "true",
         ])
         let liste = (j as? [[String: Any]]) ?? []
         return liste.compactMap { d in
             guard let id = d.text("id"), let name = d.text("name"),
                   let ort = d.objekt("location"),
                   let b = ort.zahl("latitude"), let l = ort.zahl("longitude") else { return nil }
-            return Haltestelle(id: id, name: name, breite: b, laenge: l, quelle: .vbb)
+            let produkte = (d.objekt("products") ?? [:]).filter { $0.value as? Bool == true }.map(\.key)
+            // „tram:96“ – mit Verkehrsmittel, damit Bahnlinien Vorrang bekommen können.
+            let linien = d.liste("lines").compactMap { l in
+                l.text("name").map { "\(mittel(l.text("product")).rawValue):\($0)" }
+            }
+            return Haltestelle(id: id, name: name, breite: b, laenge: l, quelle: .vbb,
+                               mittel: Array(Set(produkte.map(mittel))), linien: Array(Set(linien)))
         }
     }
 

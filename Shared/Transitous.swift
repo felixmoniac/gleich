@@ -32,12 +32,11 @@ enum Transitous {
             "type": "STOP",
         ])
         let nah = ((j as? [[String: Any]]) ?? []).compactMap(haltestelle)
-        let hier = CLLocation(latitude: ort.latitude, longitude: ort.longitude)
-        if let erste = nah.map({ $0.ort.distance(from: hier) }).min(), erste < 1000 { return nah }
-        // Die Umkreissuche reicht nicht weit. Auf dem Land im Kartenausschnitt suchen, notfalls großzügig.
-        for spanne in [0.06, 0.3] {
-            let weit = try await imAusschnitt(um: ort, spanne: spanne)
-            if !weit.isEmpty { return nah + weit }
+        // Die Umkreissuche reicht nur etwa einen Kilometer weit. Für Bahnhöfe etwas weiter weg
+        // und auf dem Land im Kartenausschnitt suchen, notfalls großzügig.
+        for spanne in [0.018, 0.06, 0.3] {
+            let weit = (try? await imAusschnitt(um: ort, spanne: spanne)) ?? []
+            if !weit.isEmpty || !nah.isEmpty { return nah + weit }
         }
         return nah
     }
@@ -45,7 +44,9 @@ enum Transitous {
     private static func haltestelle(_ d: [String: Any]) -> Haltestelle? {
         guard let id = d.text("id") ?? d.text("stopId"), let name = d.text("name"),
               let b = d.zahl("lat"), let l = d.zahl("lon") else { return nil }
-        return Haltestelle(id: d.text("parentId") ?? id, name: name, breite: b, laenge: l, quelle: .transitous)
+        let modi = (d["modes"] as? [String] ?? []).map(mittel)
+        return Haltestelle(id: d.text("parentId") ?? id, name: name, breite: b, laenge: l, quelle: .transitous,
+                           mittel: Array(Set(modi)))
     }
 
     private static func imAusschnitt(um o: CLLocationCoordinate2D, spanne: Double) async throws -> [Haltestelle] {
@@ -57,8 +58,20 @@ enum Transitous {
         let hier = CLLocation(latitude: o.latitude, longitude: o.longitude)
         let alle = ((j as? [[String: Any]]) ?? []).compactMap(haltestelle)
             .sorted { $0.ort.distance(from: hier) < $1.ort.distance(from: hier) }
-        var gesehen = Set<String>()
-        return alle.filter { gesehen.insert(Namen.kern($0.name)).inserted }.prefix(10).map { $0 }
+        // Teile desselben Halts zusammenführen, ihre Verkehrsmittel dabei sammeln.
+        var nachName: [String: Haltestelle] = [:]
+        var reihenfolge: [String] = []
+        for h in alle {
+            let k = Namen.kern(h.name)
+            if var da = nachName[k] {
+                da.mittel = Array(Set(da.mittel + h.mittel))
+                nachName[k] = da
+            } else {
+                nachName[k] = h
+                reihenfolge.append(k)
+            }
+        }
+        return reihenfolge.prefix(40).compactMap { nachName[$0] }
     }
 
     // MARK: Abfahrten
