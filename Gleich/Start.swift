@@ -6,6 +6,9 @@ struct Start: View {
     @State private var pfad: [Fahrtwunsch] = []
     @State private var suchtGerade = false
     @AppStorage("anleitungGesehen") private var anleitungGesehen = false
+    /// Verstecktes Spiel: zweimal binnen einer Sekunde links über die Übersicht hinaus wischen.
+    @State private var spielt = false
+    @State private var letzterWisch = Date.distantPast
     @Environment(\.scenePhase) private var szene
 
     var body: some View {
@@ -17,6 +20,7 @@ struct Start: View {
                 }
         }
         .environment(merkliste)
+        .fullScreenCover(isPresented: $spielt) { WollalarmSpiel() }
         // Die Suche kommt als Blatt von unten – ein Wisch nach unten bringt zurück zur Startseite.
         .sheet(isPresented: $suchtGerade) {
             SuchSeite(standort: umgebung.standort) { wunsch in
@@ -82,6 +86,9 @@ struct Start: View {
             }
         } else {
             TabView(selection: $umgebung.seite) {
+                // Unsichtbare Seite links der Übersicht: Wer hierher wischt, federt sofort zurück.
+                Color(.systemBackground)
+                    .tag(Optional("tor"))
                 Uebersicht(plaene: umgebung.plaene, quelleVBB: umgebung.seiten.first?.halt.quelle == .vbb)
                     .tag(Optional("uebersicht"))
                 if umgebung.jwd {
@@ -97,6 +104,16 @@ struct Start: View {
             }
             .tabViewStyle(.page(indexDisplayMode: .never))
             .onChange(of: umgebung.seite) { _, neu in
+                if neu == "tor" {
+                    if Date.now.timeIntervalSince(letzterWisch) < 1 {
+                        letzterWisch = .distantPast
+                        spielt = true
+                    } else {
+                        letzterWisch = .now
+                    }
+                    withAnimation(.snappy(duration: 0.25)) { umgebung.seite = "uebersicht" }
+                    return
+                }
                 // Beim Weiterwischen die nächste Haltestelle frisch laden.
                 if let m = umgebung.seiten.first(where: { $0.id == neu }) {
                     Task { await m.laden() }
