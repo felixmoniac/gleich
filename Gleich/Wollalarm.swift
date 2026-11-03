@@ -37,7 +37,8 @@ final class Wollalarm {
     private(set) var leben = 3
     private(set) var welle = 0
     private(set) var lokX: CGFloat = 195
-    var zielX: CGFloat = 195
+    /// Gedrückte Fahrtaste: −1 links, 0 steht, +1 rechts.
+    var steuer: CGFloat = 0
     private(set) var lokWeg = 0.0
     private(set) var unverwundbarBis = 0.0
     private(set) var schuss: CGPoint?
@@ -59,7 +60,8 @@ final class Wollalarm {
 
     var abstandX: CGFloat { min(40, feld.width * 0.09) }
     let abstandY: CGFloat = 30
-    var lokY: CGFloat { feld.height - 90 }
+    /// Unten bleibt Platz für die Tasten.
+    var lokY: CGFloat { feld.height - 150 }
     var schornsteinX: CGFloat { lokX + (58 - 37) * 0.7 }
 
     func ort(_ k: Katze) -> CGPoint {
@@ -72,9 +74,14 @@ final class Wollalarm {
 
     // MARK: Ablauf
 
-    func beruehrt(bei x: CGFloat) {
-        zielX = x
+    /// Dampftaste: schießt – oder startet ein neues Spiel.
+    func dampf() {
         if phase == .laeuft { feuern() } else { neuesSpiel() }
+    }
+
+    /// Tipp aufs Spielfeld startet nur, schießt aber nicht.
+    func starten() {
+        if phase != .laeuft { neuesSpiel() }
     }
 
     private func neuesSpiel() {
@@ -82,7 +89,6 @@ final class Wollalarm {
         leben = 3
         welle = 0
         lokX = feld.width / 2
-        zielX = lokX
         unverwundbarBis = 0
         bonus = nil
         blitze = []
@@ -133,10 +139,9 @@ final class Wollalarm {
         if let b = bonus, zeit - b.zeit > 1.2 { bonus = nil }
         guard phase == .laeuft else { return }
 
-        // Lok fährt zum Finger
+        // Lok fährt, solange eine Pfeiltaste gedrückt ist
         if zeit > unverwundbarBis - 0.6 {
-            let schrittweite = CGFloat(300 * dt)
-            let neu = lokX + max(-schrittweite, min(schrittweite, zielX - lokX))
+            let neu = lokX + steuer * CGFloat(260 * dt)
             let rand: CGFloat = 30
             let begrenzt = min(max(neu, rand), feld.width - rand)
             lokWeg += Double(begrenzt - lokX) / 6
@@ -298,7 +303,6 @@ final class Wollalarm {
 
 struct WollalarmSpiel: View {
     @State private var spiel = Wollalarm()
-    @State private var beruehrt = false
     @Environment(\.dismiss) private var schliessen
 
     var body: some View {
@@ -306,19 +310,10 @@ struct WollalarmSpiel: View {
             ZStack {
                 Canvas { ctx, _ in zeichnen(ctx) }
                     .contentShape(Rectangle())
-                    .gesture(
-                        DragGesture(minimumDistance: 0)
-                            .onChanged { w in
-                                if !beruehrt {
-                                    beruehrt = true
-                                    spiel.beruehrt(bei: w.location.x)
-                                }
-                                spiel.zielX = w.location.x
-                            }
-                            .onEnded { _ in beruehrt = false }
-                    )
+                    .onTapGesture { spiel.starten() }
                 anzeige
                 tafel
+                tasten
             }
             .onAppear { spiel.feld = geo.size }
             .onChange(of: geo.size) { _, neu in spiel.feld = neu }
@@ -347,6 +342,21 @@ struct WollalarmSpiel: View {
         }
     }
 
+    /// Unten: zwei Pfeiltasten zum Fahren (gedrückt halten), rechts die Dampftaste.
+    private var tasten: some View {
+        VStack {
+            Spacer()
+            HStack(spacing: 14) {
+                Fahrtaste(symbol: "arrowtriangle.left.fill") { spiel.steuer = $0 ? -1 : (spiel.steuer < 0 ? 0 : spiel.steuer) }
+                Fahrtaste(symbol: "arrowtriangle.right.fill") { spiel.steuer = $0 ? 1 : (spiel.steuer > 0 ? 0 : spiel.steuer) }
+                Spacer()
+                Dampftaste { spiel.dampf() }
+            }
+            .padding(.horizontal, 22)
+            .padding(.bottom, 18)
+        }
+    }
+
     /// Punkte und Rekord oben.
     private var anzeige: some View {
         VStack {
@@ -372,7 +382,7 @@ struct WollalarmSpiel: View {
             VStack(spacing: 14) {
                 Text("Wollalarm")
                     .font(.system(size: 44, weight: .heavy, design: .rounded))
-                Text("Ziehen: fahren · Tippen: Dampf")
+                Text("Pfeile: fahren · Dampf: pusten")
                     .foregroundStyle(.secondary)
                 Text("Tippen zum Start")
                     .font(.headline)
@@ -442,10 +452,10 @@ struct WollalarmSpiel: View {
             Lok.koerper(c, winkel: s.lokWeg)
         }
 
-        // Leben unten links
+        // Leben oben links unter den Punkten
         for i in 0..<max(0, s.leben - 1) {
             var c = ctx
-            c.translateBy(x: 30 + CGFloat(i) * 34, y: s.feld.height - 30)
+            c.translateBy(x: 34 + CGFloat(i) * 34, y: 62)
             c.scaleBy(x: 0.38, y: 0.38)
             c.translateBy(x: -37, y: -54)
             Lok.koerper(c, winkel: 0)
@@ -555,3 +565,48 @@ struct WollalarmSpiel: View {
 }
 
 #Preview { WollalarmSpiel() }
+
+/// Pfeiltaste: meldet Drücken und Loslassen, damit die Lok fährt, solange man draufbleibt.
+private struct Fahrtaste: View {
+    var symbol: String
+    var gedrueckt: (Bool) -> Void
+    @State private var unten = false
+
+    var body: some View {
+        Image(systemName: symbol)
+            .font(.title2)
+            .frame(width: 68, height: 68)
+            .contentShape(Circle())
+            .glassEffect(.regular.interactive(), in: Circle())
+            .scaleEffect(unten ? 0.92 : 1)
+            .gesture(
+                DragGesture(minimumDistance: 0)
+                    .onChanged { _ in
+                        if !unten { unten = true; gedrueckt(true) }
+                    }
+                    .onEnded { _ in unten = false; gedrueckt(false) }
+            )
+    }
+}
+
+/// Dampftaste: schießt beim Herunterdrücken, nicht erst beim Loslassen.
+private struct Dampftaste: View {
+    var aktion: () -> Void
+    @State private var unten = false
+
+    var body: some View {
+        Image(systemName: "smoke.fill")
+            .font(.title)
+            .frame(width: 80, height: 80)
+            .contentShape(Circle())
+            .glassEffect(.regular.interactive(), in: Circle())
+            .scaleEffect(unten ? 0.9 : 1)
+            .gesture(
+                DragGesture(minimumDistance: 0)
+                    .onChanged { _ in
+                        if !unten { unten = true; aktion() }
+                    }
+                    .onEnded { _ in unten = false }
+            )
+    }
+}
