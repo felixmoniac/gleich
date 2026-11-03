@@ -109,7 +109,7 @@ struct HaltSeite: View {
     }
 
     @ViewBuilder private func zeilen(jetzt: Date) -> some View {
-        let liste = modell.sichtbar(jetzt: jetzt)
+        let liste = modell.sichtbar(jetzt: jetzt) { umgebung.erreichbar($0, an: modell.halt, jetzt: jetzt) }
         if liste.isEmpty && !modell.laedt && !umgebung.laedt {
             Text(modell.ohneNetz ? "" : "Hier fährt so bald nichts.")
                 .foregroundStyle(.secondary)

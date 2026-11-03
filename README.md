@@ -6,6 +6,8 @@ Eine schlichte Fahrplan-App fürs iPhone. Beim Öffnen zeigt sie sofort, was an 
 
 - **Abfahrten in der Nähe:** Oben steht der Name der Haltestelle, darunter Linie, Richtung und Minuten bis zur Abfahrt.
   Linien erscheinen in ihren gewohnten Farben (S-Bahn rund, U-Bahn eckig, Tram rot, Bus lila).
+  Gezeigt werden höchstens 15 Abfahrten, je Linie höchstens vier und je Richtung zwei – so wiederholt sich an kleinen
+  Haltestellen nicht ständig dieselbe Linie, und an großen Bahnhöfen bleibt es übersichtlich.
   Eine rote Zeit heißt: Der Zug ist verspätet, angezeigt wird die tatsächliche Abfahrt.
   Blasse Zeilen schafft man zu Fuß wahrscheinlich nicht mehr – mit etwas Glück aber doch.
 - **Große Bahnhöfe** gelten als eine Haltestelle. Dann erscheinen oben kleine Symbole für die Verkehrsmittel (S, U, Tram, Bus, Zug); ein Tipp zeigt nur dieses Verkehrsmittel.

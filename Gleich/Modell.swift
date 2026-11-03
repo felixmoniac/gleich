@@ -25,13 +25,28 @@ final class HaltModell: Identifiable {
         return Verkehrsmittel.reihenfolge.filter(da.contains)
     }
 
-    /// Nur die nächsten Abfahrten – eine ruhige, feste Liste ohne Nachladen.
+    /// Nur die nächsten Abfahrten: insgesamt höchstens 15, je Linie höchstens vier, je Richtung höchstens zwei.
+    /// Von den blassen (zu Fuß wohl nicht mehr zu schaffen) zählt je Richtung nur eine mit –
+    /// sonst stünde dort womöglich nichts, was man noch erreicht.
     static let hoechstens = 15
 
-    func sichtbar(jetzt: Date) -> [Abfahrt] {
-        Array(abfahrten.filter { a in
-            a.zeit.timeIntervalSince(jetzt) > -30 && (filter == nil || a.linie.mittel == filter)
-        }.prefix(HaltModell.hoechstens))
+    func sichtbar(jetzt: Date, erreichbar: (Abfahrt) -> Bool) -> [Abfahrt] {
+        var jeLinie: [String: Int] = [:]
+        var jeRichtung: [String: (alle: Int, blass: Int)] = [:]
+        let auswahl = abfahrten.filter { a in
+            guard a.zeit.timeIntervalSince(jetzt) > -30, filter == nil || a.linie.mittel == filter else { return false }
+            let linie = a.linie.mittel.rawValue + a.linie.name
+            let richtung = linie + "|" + Namen.kern(a.richtung)
+            var zaehler = jeRichtung[richtung] ?? (0, 0)
+            let blass = !erreichbar(a)
+            guard jeLinie[linie, default: 0] < 4, zaehler.alle < 2, !(blass && zaehler.blass >= 1) else { return false }
+            zaehler.alle += 1
+            if blass { zaehler.blass += 1 }
+            jeRichtung[richtung] = zaehler
+            jeLinie[linie, default: 0] += 1
+            return true
+        }
+        return Array(auswahl.prefix(HaltModell.hoechstens))
     }
 
     func laden() async {
