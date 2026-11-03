@@ -41,7 +41,13 @@ final class Wollalarm {
     var steuer: CGFloat = 0
     private(set) var lokWeg = 0.0
     private(set) var unverwundbarBis = 0.0
-    private(set) var schuss: CGPoint?
+    /// Dampfwolken unterwegs nach oben.
+    private(set) var schuesse: [CGPoint] = []
+    /// Wird die Dampftaste gehalten, pustet die Lok fortlaufend.
+    var dampfGehalten = false
+    private var naechsterSchuss = 0.0
+    /// Abstand zwischen zwei Wolken beim Dauerfeuer.
+    static let schussTakt = 0.2
     private(set) var katzen: [Katze] = []
     private(set) var versatz = CGPoint.zero
     private var richtung: CGFloat = 1
@@ -74,8 +80,10 @@ final class Wollalarm {
 
     // MARK: Ablauf
 
-    /// Dampftaste: schießt – oder startet ein neues Spiel.
-    func dampf() {
+    /// Dampftaste gedrückt: schießt sofort (oder startet ein neues Spiel), danach Dauerfeuer bis zum Loslassen.
+    func dampf(gedrueckt: Bool) {
+        dampfGehalten = gedrueckt
+        guard gedrueckt else { return }
         if phase == .laeuft { feuern() } else { neuesSpiel() }
     }
 
@@ -106,13 +114,14 @@ final class Wollalarm {
         richtung = 1
         takt = 0
         knaeuel = []
-        schuss = nil
+        schuesse = []
         naechsterWurf = 1.5
     }
 
     private func feuern() {
-        guard schuss == nil, zeit > unverwundbarBis else { return }
-        schuss = CGPoint(x: schornsteinX, y: lokY - 30)
+        guard zeit >= naechsterSchuss, zeit > unverwundbarBis else { return }
+        schuesse.append(CGPoint(x: schornsteinX, y: lokY - 30))
+        naechsterSchuss = zeit + Wollalarm.schussTakt
     }
 
     /// Ein Prellbock aus 14 × 9 Steinchen: Balken oben, zwei Stützen darunter.
@@ -148,7 +157,8 @@ final class Wollalarm {
             lokX = begrenzt
         }
 
-        bewegeSchuss(dt)
+        if dampfGehalten { feuern() }
+        bewegeSchuesse(dt)
 
         // Formation: je weniger Katzen, desto schneller
         let lebend = katzen.filter(\.lebt).count
@@ -191,20 +201,27 @@ final class Wollalarm {
         bild.toggle()
     }
 
-    private func bewegeSchuss(_ dt: Double) {
-        guard var s = schuss else { return }
-        s.y -= CGFloat(560 * dt)
-        schuss = s
-        if s.y < 40 { schuss = nil; return }
+    private func bewegeSchuesse(_ dt: Double) {
+        var bleiben: [CGPoint] = []
+        for var s in schuesse {
+            s.y -= CGFloat(560 * dt)
+            if s.y < 40 { continue }
+            if treffer(s) { continue }
+            bleiben.append(s)
+        }
+        schuesse = bleiben
+    }
+
+    /// Trifft eine Wolke etwas? Katze, Kontrolleur oder Prellbock.
+    private func treffer(_ s: CGPoint) -> Bool {
         for i in katzen.indices where katzen[i].lebt {
             let k = ort(katzen[i])
             if abs(s.x - k.x) < 13, abs(s.y - k.y) < 12 {
                 katzen[i].lebt = false
                 gewinnen(Wollalarm.wert(reihe: katzen[i].reihe))
                 blitze.append(Blitz(ort: k, zeit: zeit, gross: false))
-                schuss = nil
                 UIImpactFeedbackGenerator(style: .light).impactOccurred()
-                return
+                return true
             }
         }
         if let k = kontrolleur, abs(s.x - k.x) < 18, abs(s.y - k.y) < 14 {
@@ -213,11 +230,10 @@ final class Wollalarm {
             bonus = ("+\(extra)", k, zeit)
             blitze.append(Blitz(ort: k, zeit: zeit, gross: true))
             kontrolleur = nil
-            schuss = nil
             UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-            return
+            return true
         }
-        if trifftPrellbock(s) { schuss = nil }
+        return trifftPrellbock(s)
     }
 
     private func werfen() {
@@ -294,7 +310,8 @@ final class Wollalarm {
     private func beenden() {
         phase = .ende
         knaeuel = []
-        schuss = nil
+        schuesse = []
+        dampfGehalten = false
         UINotificationFeedbackGenerator().notificationOccurred(.error)
     }
 }
@@ -352,7 +369,7 @@ struct WollalarmSpiel: View {
             HStack(spacing: 14) {
                 Wippe { spiel.steuer = $0 }
                 Spacer(minLength: 10)
-                Dampftaste { spiel.dampf() }
+                Dampftaste { spiel.dampf(gedrueckt: $0) }
             }
             .padding(.horizontal, 22)
             .padding(.bottom, 30)
@@ -464,7 +481,7 @@ struct WollalarmSpiel: View {
         }
 
         // Dampfwolke
-        if let d = s.schuss {
+        for d in s.schuesse {
             var w = Path()
             w.addEllipse(in: CGRect(x: d.x - 4, y: d.y - 5, width: 8, height: 8))
             w.addEllipse(in: CGRect(x: d.x - 6, y: d.y - 1, width: 6, height: 6))
@@ -613,9 +630,9 @@ private struct Wippe: View {
     }
 }
 
-/// Dampftaste: schießt beim Herunterdrücken, nicht erst beim Loslassen.
+/// Dampftaste: schießt beim Herunterdrücken; gehalten pustet sie fortlaufend.
 private struct Dampftaste: View {
-    var aktion: () -> Void
+    var gedrueckt: (Bool) -> Void
     @State private var unten = false
 
     var body: some View {
@@ -629,9 +646,9 @@ private struct Dampftaste: View {
             .gesture(
                 DragGesture(minimumDistance: 0)
                     .onChanged { _ in
-                        if !unten { unten = true; aktion() }
+                        if !unten { unten = true; gedrueckt(true) }
                     }
-                    .onEnded { _ in unten = false }
+                    .onEnded { _ in unten = false; gedrueckt(false) }
             )
     }
 }
