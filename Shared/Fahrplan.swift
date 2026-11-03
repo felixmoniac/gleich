@@ -7,6 +7,12 @@ enum Fahrplan {
     static let jwdMeter: Double = 5000
 
     static func haltestellen(bei ort: CLLocationCoordinate2D) async throws -> [Haltestelle] {
+        let hier = CLLocation(latitude: ort.latitude, longitude: ort.longitude)
+        return auswaehlen(try await kandidaten(bei: ort)) { gehzeit(von: hier, zu: $0) }
+    }
+
+    /// Alle Haltestellen der Umgebung, Teile desselben Bahnhofs zusammengelegt, nach Luftlinie sortiert.
+    static func kandidaten(bei ort: CLLocationCoordinate2D) async throws -> [Haltestelle] {
         var roh: [Haltestelle] = []
         if VBB.zustaendig(fuer: ort) {
             roh = (try? await VBB.haltestellen(bei: ort)) ?? []
@@ -14,13 +20,6 @@ enum Fahrplan {
         if roh.isEmpty {
             roh = try await Transitous.haltestellen(bei: ort)
         }
-        return ordnen(roh, um: ort)
-    }
-
-    /// Welche Haltestellen zur Auswahl stehen: immer die nächste. Weitere nur, wenn dort etwas fährt,
-    /// das es näher nicht gibt – erst in Gehweite (etwa 5 Minuten), dann Bahnen bis 2 km, dann Busse bis 1 km.
-    /// Höchstens vier Haltestellen.
-    static func ordnen(_ roh: [Haltestelle], um ort: CLLocationCoordinate2D) -> [Haltestelle] {
         let hier = CLLocation(latitude: ort.latitude, longitude: ort.longitude)
         let abstand = { (h: Haltestelle) in h.ort.distance(from: hier) }
         var alle: [Haltestelle] = []
@@ -37,7 +36,15 @@ enum Fahrplan {
                 alle.append(h)
             }
         }
-        guard let naechste = alle.first else { return [] }
+        return alle
+    }
+
+    /// Welche Haltestellen zur Auswahl stehen, gemessen in Minuten Fußweg: immer die nächste.
+    /// Weitere nur, wenn dort etwas fährt, das es näher nicht gibt – erst bis 6 Minuten, dann Bahnen bis 30,
+    /// dann Busse bis 15 Minuten. Bei gleichem Angebot gewinnt der kürzere Weg. Höchstens vier Haltestellen.
+    static func auswaehlen(_ alle: [Haltestelle], gehzeit: (Haltestelle) -> TimeInterval) -> [Haltestelle] {
+        let sortiert = alle.sorted { gehzeit($0) < gehzeit($1) }
+        guard let naechste = sortiert.first else { return [] }
 
         // Zum Vergleich: Linien, sonst (bei Transitous) Verkehrsmittel.
         func angebot(_ h: Haltestelle) -> Set<String> {
@@ -46,18 +53,18 @@ enum Fahrplan {
         func istBus(_ eintrag: String) -> Bool { eintrag.hasPrefix("bus:") || eintrag.hasPrefix("sonst:") }
 
         var auswahl = [naechste]
-        let durchgaenge: [((Haltestelle) -> Bool, (Set<String>) -> Bool)] = [
-            ({ gehzeit(von: hier, zu: $0) <= 6 * 60 }, { !$0.isEmpty }),
-            ({ abstand($0) <= 2000 }, { $0.contains { !istBus($0) } }),
-            ({ abstand($0) <= 1000 }, { !$0.isEmpty }),
+        let durchgaenge: [(TimeInterval, (Set<String>) -> Bool)] = [
+            (6 * 60, { !$0.isEmpty }),
+            (30 * 60, { $0.contains { !istBus($0) } }),
+            (15 * 60, { !$0.isEmpty }),
         ]
-        for (inReichweite, lohntSich) in durchgaenge {
-            for h in alle where auswahl.count < 4 && !auswahl.contains(h) && inReichweite(h) {
+        for (minuten, lohntSich) in durchgaenge {
+            for h in sortiert where auswahl.count < 4 && !auswahl.contains(h) && gehzeit(h) <= minuten {
                 let bekannt = auswahl.reduce(into: Set<String>()) { $0.formUnion(angebot($1)) }
                 if lohntSich(angebot(h).subtracting(bekannt)) { auswahl.append(h) }
             }
         }
-        return auswahl.sorted { abstand($0) < abstand($1) }
+        return auswahl.sorted { gehzeit($0) < gehzeit($1) }
     }
 
     struct Seite {
@@ -93,7 +100,7 @@ enum Fahrplan {
         }
     }
 
-    /// Gehzeit zur Haltestelle: Luftlinie mal 1,3 für Umwege, 4,5 km/h.
+    /// Gehzeit zur Haltestelle nach Luftlinie: mal 1,3 für Umwege, 4,5 km/h. Ersatz, wenn kein echter Fußweg bekannt ist.
     static func gehzeit(von ort: CLLocation?, zu halt: Haltestelle) -> TimeInterval {
         guard let ort else { return 0 }
         return ort.distance(from: halt.ort) * 1.3 / 1.25

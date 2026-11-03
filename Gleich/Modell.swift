@@ -60,6 +60,8 @@ final class Umgebung {
     var ohneNetz = false
     /// Nächste Haltestelle weiter als 5 km weg.
     var jwd = false
+    /// Echte Gehzeiten von Apple Karten (Sekunden je Haltestelle), vom Ort der letzten Haltestellensuche aus.
+    private var gehzeiten: [String: TimeInterval] = [:]
     private var ortDerHaltestellen: CLLocation?
 
     init() {
@@ -81,7 +83,9 @@ final class Umgebung {
         let weit = ortDerHaltestellen.map { $0.distance(from: ort) > 120 } ?? true
         if weit || seiten.isEmpty {
             do {
-                let liste = try await Fahrplan.haltestellen(bei: ort.coordinate)
+                let alle = try await Fahrplan.kandidaten(bei: ort.coordinate)
+                gehzeiten = await Gehwege.zeiten(von: ort, zu: Gehwege.auswahl(alle, um: ort))
+                let liste = Fahrplan.auswaehlen(alle) { gehzeit(zu: $0, von: ort) }
                 ortDerHaltestellen = ort
                 ohneNetz = false
                 jwd = (liste.first?.ort.distance(from: ort) ?? .infinity) > Fahrplan.jwdMeter
@@ -112,7 +116,12 @@ final class Umgebung {
         await plaene.aktualisieren(bei: ort.coordinate, orte: Array(Set(orte)).sorted())
     }
 
+    /// Fußweg zur Haltestelle: echt, wenn Apple Karten ihn kennt, sonst nach Luftlinie.
+    func gehzeit(zu halt: Haltestelle, von ort: CLLocation? = nil) -> TimeInterval {
+        gehzeiten[halt.id] ?? Fahrplan.gehzeit(von: ort ?? standort.ort, zu: halt)
+    }
+
     func erreichbar(_ a: Abfahrt, an halt: Haltestelle, jetzt: Date) -> Bool {
-        a.zeit.timeIntervalSince(jetzt) >= Fahrplan.gehzeit(von: standort.ort, zu: halt)
+        a.zeit.timeIntervalSince(jetzt) >= gehzeit(zu: halt)
     }
 }

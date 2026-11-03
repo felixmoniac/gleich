@@ -10,8 +10,10 @@ Eine schlichte Fahrplan-App fürs iPhone. Beim Öffnen zeigt sie sofort, was an 
   Blasse Zeilen schafft man zu Fuß wahrscheinlich nicht mehr – mit etwas Glück aber doch.
 - **Große Bahnhöfe** gelten als eine Haltestelle. Dann erscheinen oben kleine Symbole für die Verkehrsmittel (S, U, Tram, Bus, Zug); ein Tipp zeigt nur dieses Verkehrsmittel.
 - **Wischen nach links** zeigt weitere Haltestellen – aber nur solche, an denen etwas fährt, das es an der nächsten nicht gibt:
-  erst in Gehweite, dann Bahnhöfe bis etwa 2 km (zum Beispiel der Regionalzug, der von der Bushaltestelle aus nicht fährt),
-  dann andere Buslinien bis 1 km. Höchstens vier Haltestellen; neben dem Namen steht, wie viele Minuten man zu Fuß braucht.
+  erst bis 6 Minuten zu Fuß, dann Bahnhöfe bis 30 Minuten (zum Beispiel der Regionalzug, der von der Bushaltestelle aus
+  nicht fährt), dann andere Buslinien bis 15 Minuten. Höchstens vier Haltestellen; neben dem Namen steht die Gehzeit.
+  Die Gehzeiten rechnet Apple Karten auf echten Wegen – ein See, über den keine Brücke führt, wird umlaufen.
+  Fahren an zwei Bahnhöfen dieselben Linien, gewinnt der mit dem kürzeren Fußweg. Ohne Netz gilt die Luftlinie.
 - **Wischen nach rechts** öffnet die Übersicht: der Verkehrsverbund, in dem man gerade ist, seine Netzpläne und eine kurze Anleitung.
   Die Netzpläne lädt die App von selbst herunter, sie sind danach auch ohne Netz da. Ein Tipp öffnet den Plan zum Zoomen.
   Netzpläne gibt es bisher für Berlin-Brandenburg (VBB), Hamburg (HVV), München (MVV), Rhein-Main (RMV), Rhein-Ruhr (VRR),
