@@ -6,11 +6,9 @@ struct VerbindungenSeite: View {
     var standort: Standort
 
     @State private var liste: [Verbindung] = []
-    @State private var weiter: String?
     @State private var laedt = false
     @State private var ohneNetz = false
     @State private var offen: String?
-    @State private var holtMehr = false
 
     var body: some View {
         LokScroll(laedt: laedt) { await laden() } inhalt: {
@@ -31,7 +29,6 @@ struct VerbindungenSeite: View {
                         VerbindungZeile(verbindung: v, offen: offen == v.id) {
                             withAnimation(.snappy) { offen = offen == v.id ? nil : v.id }
                         }
-                        .onAppear { if v.id == liste.last?.id { Task { await mehr() } } }
                     }
                 }
             }
@@ -49,22 +46,11 @@ struct VerbindungenSeite: View {
         guard let ort = await standort.frisch() else { return }
         do {
             let e = try await Transitous.verbindungen(von: ort.coordinate, nach: ziel)
-            liste = e.liste.filter { $0.an > .now }
-            weiter = e.weiter
+            liste = Array(e.liste.filter { $0.an > .now }.prefix(6))
             ohneNetz = false
         } catch {
             ohneNetz = true
         }
-    }
-
-    private func mehr() async {
-        guard !holtMehr, !laedt, let w = weiter, let ort = standort.ort else { return }
-        holtMehr = true
-        defer { holtMehr = false }
-        guard let e = try? await Transitous.verbindungen(von: ort.coordinate, nach: ziel, weiter: w) else { return }
-        let bekannt = Set(liste.map(\.id))
-        liste += e.liste.filter { !bekannt.contains($0.id) }
-        weiter = e.weiter
     }
 }
 

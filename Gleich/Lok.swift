@@ -120,8 +120,11 @@ struct LokScroll<Inhalt: View>: View {
     @State private var start = Date.distantPast
     @State private var lokBreite: CGFloat = 400
 
-    private let schwelle: CGFloat = 86
-    private let hoehe: CGFloat = 96
+    /// Ab hier lädt Loslassen neu.
+    private let schwelle: CGFloat = 100
+    /// Ab dieser Lücke passt die ganze Lok hinein (ohne Dampf).
+    private let platz: CGFloat = 52
+    private let hoehe: CGFloat = 84
 
     var body: some View {
         GeometryReader { geo in
@@ -131,7 +134,6 @@ struct LokScroll<Inhalt: View>: View {
                     ZStack {
                         if phase != .ruhe {
                             Lok(ruckelt: true)
-                                .scaleEffect(1.2)
                                 .offset(x: weg)
                         }
                     }
@@ -152,18 +154,16 @@ struct LokScroll<Inhalt: View>: View {
                 }
             }
             .overlay(alignment: .top) {
-                // Beim Ziehen rollt die Lok von links herein – nur in der Lücke über der Liste,
-                // damit sie nie über die Abfahrten fährt. Sie steht auf dem unteren Rand der Lücke.
-                if phase == .ruhe, zug > 24 {
-                    let anteil = min(zug / schwelle, 1)
+                // Beim Ziehen rollt die Lok von links herein – erst, wenn die Lücke über der Liste groß genug
+                // für die ganze Lok ist. Sie steht auf dem unteren Rand der Lücke und fährt nie über die Abfahrten.
+                if phase == .ruhe, zug >= platz {
+                    let anteil = min((zug - platz) / (schwelle - platz), 1)
                     let x = -(breite / 2 + 50) * (1 - anteil)
                     Lok(ruckelt: false, strecke: x)
-                        .scaleEffect(1.2)
                         .offset(x: x)
                         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
                         .frame(height: zug)
                         .clipped()
-                        .opacity(Double(min(1, (zug - 24) / 30)))
                         .allowsHitTesting(false)
                 }
             }
