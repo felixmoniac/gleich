@@ -98,10 +98,4 @@ enum Fahrplan {
         guard let ort else { return 0 }
         return ort.distance(from: halt.ort) * 1.3 / 1.25
     }
-
-    /// Abfahrten zusammenführen, Doppeltes weglassen.
-    static func zusammen(_ alt: [Abfahrt], _ neu: [Abfahrt]) -> [Abfahrt] {
-        var gesehen = Set(alt.map(\.id))
-        return alt + neu.filter { gesehen.insert($0.id).inserted }
-    }
 }

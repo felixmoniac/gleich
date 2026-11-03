@@ -11,8 +11,6 @@ final class HaltModell: Identifiable {
     var laedt = false
     var ohneNetz = false
     var filter: Verkehrsmittel?
-    private var weiter: Fahrplan.Weiter?
-    private var holtMehr = false
 
     var id: String { halt.id }
 
@@ -27,10 +25,13 @@ final class HaltModell: Identifiable {
         return Verkehrsmittel.reihenfolge.filter(da.contains)
     }
 
+    /// Nur die nächsten Abfahrten – eine ruhige, feste Liste ohne Nachladen.
+    static let hoechstens = 15
+
     func sichtbar(jetzt: Date) -> [Abfahrt] {
-        abfahrten.filter { a in
+        Array(abfahrten.filter { a in
             a.zeit.timeIntervalSince(jetzt) > -30 && (filter == nil || a.linie.mittel == filter)
-        }
+        }.prefix(HaltModell.hoechstens))
     }
 
     func laden() async {
@@ -39,22 +40,12 @@ final class HaltModell: Identifiable {
         do {
             let seite = try await Fahrplan.abfahrten(halt)
             abfahrten = seite.abfahrten
-            weiter = seite.weiter
             ohneNetz = false
             if filter.map({ !mittel.contains($0) }) == true { filter = nil }
             Ablage.schreiben(abfahrten, "ab." + halt.id)
         } catch {
             ohneNetz = true
         }
-    }
-
-    func mehr() async {
-        guard !holtMehr, !laedt, let w = weiter else { return }
-        holtMehr = true
-        defer { holtMehr = false }
-        guard let seite = try? await Fahrplan.abfahrten(halt, weiter: w) else { return }
-        abfahrten = Fahrplan.zusammen(abfahrten, seite.abfahrten).sorted { $0.zeit < $1.zeit }
-        weiter = seite.weiter
     }
 }
 

@@ -95,24 +95,34 @@ struct PlanKachel: View {
     }
 }
 
-/// Plan bildschirmfüllend, zum Zoomen.
+/// Plan bildschirmfüllend, zum Zoomen. Titel und Kreuz liegen in einer eigenen Leiste über dem Plan –
+/// als Schicht über dem PDF kamen Berührungen beim Kreuz nicht an.
 struct PlanAnsicht: View {
     var plan: Netzplan
     @Environment(\.dismiss) private var schliessen
 
     var body: some View {
-        PDFAnsicht(url: plan.datei)
-            .ignoresSafeArea()
-            .overlay(alignment: .topTrailing) {
+        VStack(spacing: 0) {
+            HStack(spacing: 12) {
+                Text(plan.titel)
+                    .font(.headline)
+                    .lineLimit(1)
+                Spacer(minLength: 0)
                 Button { schliessen() } label: {
                     Image(systemName: "xmark")
                         .font(.body.weight(.semibold))
                         .frame(width: 44, height: 44)
+                        .contentShape(Circle())
                 }
                 .buttonStyle(.plain)
                 .glassEffect(.regular.interactive(), in: Circle())
-                .padding(.trailing, 20)
             }
+            .padding(.horizontal, 20)
+            .padding(.vertical, 8)
+            PDFAnsicht(url: plan.datei)
+                .ignoresSafeArea(edges: .bottom)
+        }
+        .background(Color(.systemBackground))
     }
 }
 

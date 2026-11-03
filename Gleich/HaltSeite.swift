@@ -124,9 +124,6 @@ struct HaltSeite: View {
                 }
                 .buttonStyle(.plain)
                 .opacity(modell.ohneNetz ? 0.35 : 1)
-                .onAppear {
-                    if a.id == liste.last?.id { Task { await modell.mehr() } }
-                }
             }
         }
     }
