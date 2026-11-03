@@ -39,15 +39,17 @@ struct Lok: View {
             lok.translateBy(x: 38 + ruck, y: 50 + hupf)
             lok.rotate(by: .radians(kipp))
             lok.translateBy(x: -38, y: -50)
-            koerper(lok, winkel: winkel)
+            Lok.koerper(lok, winkel: winkel)
         }
         .frame(width: Lok.groesse.width, height: Lok.groesse.height)
         .accessibilityHidden(true)
     }
 
-    private let strich = StrokeStyle(lineWidth: 1.8, lineCap: .round, lineJoin: .round)
+    private static let strich = StrokeStyle(lineWidth: 1.8, lineCap: .round, lineJoin: .round)
 
-    private func koerper(_ ctx: GraphicsContext, winkel: Double) {
+    /// Die Lok selbst, ohne Dampf: fährt nach rechts (+x), Schornstein oben (−y), Räder unten bei y ≈ 54.
+    /// Auch die Katze in der Suche nimmt genau diese Lok.
+    static func koerper(_ ctx: GraphicsContext, winkel: Double) {
         var p = Path()
         // Kessel mit runder Rauchkammer vorne
         p.addRoundedRect(in: CGRect(x: 30, y: 28, width: 34, height: 14), cornerSize: CGSize(width: 7, height: 7))

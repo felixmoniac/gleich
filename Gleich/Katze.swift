@@ -65,8 +65,8 @@ struct KatzeImKreis: View {
 
     /// Wo der Schornstein gerade ist, im Raum „suche“.
     private func schornstein(winkel: Double) -> CGPoint {
-        // In der Lok: Schornstein bei (−8, −9) nach der Vierteldrehung, mal 1,7 – vom Ringpunkt aus gesehen.
-        let lokal = CGPoint(x: r - 13.6, y: -15.3)
+        // Schornsteinöffnung der Lok liegt bei (58, 16,5); verschoben, gedreht und verkleinert wie oben.
+        let lokal = CGPoint(x: r + (54 - 16.5) * lokGroesse, y: (58 - 37) * lokGroesse)
         let w = winkel + lokWinkel * .pi / 180
         return CGPoint(x: rahmen.midX + lokal.x * cos(w) - lokal.y * sin(w),
                        y: rahmen.midY + lokal.x * sin(w) + lokal.y * cos(w))
@@ -90,6 +90,7 @@ struct KatzeImKreis: View {
     private let hinten = -200.0, vorn = -2.0, kopfWinkel = 10.0
     /// Die Lok steht genau in der Mitte der Lücke zwischen Kopf und Hinterteil – der Bauchmitte gegenüber.
     private var lokWinkel: Double { (kopfWinkel + hinten + 360) / 2 }
+    private let lokGroesse: CGFloat = 0.86
 
     private func zeichnen(_ ctx: GraphicsContext, groesse: CGSize, p: Double) {
         let winkel = basis + strecke * sanft(p)
@@ -102,11 +103,13 @@ struct KatzeImKreis: View {
         ctx.rotate(by: .radians(winkel))
 
         ortlich(ctx, winkel: .degrees(lokWinkel)) { c in
+            // Dieselbe Lok wie beim Herunterziehen, nur kleiner. Sie steht mit den Rädern auf dem Ring,
+            // fährt Richtung Hinterteil (weg vom Kopf) und hat den Schornstein außen.
             var c = c
-            c.scaleBy(x: 1.7, y: 1.7)
-            // Vierteldrehung: Führerhaus zeigt nach außen
+            c.scaleBy(x: lokGroesse, y: lokGroesse)
             c.rotate(by: .degrees(90))
-            kleineLok(c)
+            c.translateBy(x: -37, y: -54)
+            Lok.koerper(c, winkel: weg * 3)
         }
         beine(ctx, t: weg, schwung: schwung)
         koerper(ctx)
@@ -239,21 +242,6 @@ struct KatzeImKreis: View {
             }
         }
         c.stroke(gesicht, with: .foreground, style: StrokeStyle(lineWidth: 1.6, lineCap: .round, lineJoin: .round))
-    }
-
-    /// Winzige Lok in Strichoptik: vorn bei +y, Führerhaus bei −y, Schornstein bei −x.
-    private func kleineLok(_ c: GraphicsContext) {
-        var l = Path()
-        l.addRoundedRect(in: CGRect(x: -4, y: -2, width: 8, height: 13), cornerSize: CGSize(width: 4, height: 4))
-        l.addRect(CGRect(x: -6, y: -10, width: 12, height: 9))
-        l.move(to: CGPoint(x: -4, y: 7)); l.addLine(to: CGPoint(x: -9, y: 6)); l.addLine(to: CGPoint(x: -9, y: 10)); l.addLine(to: CGPoint(x: -4, y: 9))
-        c.fill(l, with: papier)
-        c.stroke(l, with: .foreground, style: StrokeStyle(lineWidth: 1.3, lineJoin: .round))
-        var raeder = Path()
-        for y in [-6.0, 1.0, 7.0] {
-            raeder.addEllipse(in: CGRect(x: 4, y: y - 2.5, width: 5, height: 5))
-        }
-        c.stroke(raeder, with: .foreground, style: StrokeStyle(lineWidth: 1.1))
     }
 }
 
