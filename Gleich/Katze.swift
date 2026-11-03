@@ -1,10 +1,13 @@
 import SwiftUI
 
-/// Struppige Strichkatze, zu einem „C“ eingerollt, die ihren Schwanz jagen will – am Ende des kurzen, verdrehten
-/// Schwanzes hängt eine kleine Lok, knapp vor ihrer Nase. Katze und Lok drehen sich gemeinsam im Kreis:
-/// sanft anlaufen, ein, zwei Runden, auslaufen – und jedes Mal an einer anderen Stelle stehen bleiben.
-/// Ein Tipp lässt sie noch einmal kurz rennen. Steht in der Suche, solange dort noch nichts zu sehen ist.
+/// Struppige Strichkatze, zu einem „C“ eingerollt; in der Lücke zwischen Kopf und Hinterteil steht eine kleine Lok
+/// auf dem Ring. Beide drehen sich gemeinsam im Kreis: sanft anlaufen, ein, zwei Runden, auslaufen – und jedes Mal an
+/// einer anderen Stelle stehen bleiben. Beim Rennen stößt die Lok Rauchringe aus. Ein Tipp lässt sie noch einmal
+/// kurz rennen. Steht in der Suche, solange dort noch nichts zu sehen ist.
 struct KatzeImKreis: View {
+    var rauch: Rauch
+    /// Wo die Katze im Raum „suche“ steht – damit die Rauchringe am Schornstein starten.
+    @State private var rahmen = CGRect.zero
     /// Winkel, bei dem der aktuelle Lauf begann, und wie weit er führt (Bogenmaß).
     @State private var basis = Double.random(in: 0..<(2 * .pi))
     @State private var strecke = 0.0
@@ -17,10 +20,11 @@ struct KatzeImKreis: View {
         TimelineView(.animation(minimumInterval: nil, paused: !laeuft)) { zeit in
             let p = laeuft ? min(1, zeit.date.timeIntervalSince(start) / dauer) : 1
             Canvas { ctx, groesse in
-                zeichnen(ctx, groesse: groesse, p: p, zeit: zeit.date.timeIntervalSinceReferenceDate)
+                zeichnen(ctx, groesse: groesse, p: p)
             }
         }
         .frame(width: 250, height: 250)
+        .onGeometryChange(for: CGRect.self) { $0.frame(in: .named("suche")) } action: { rahmen = $0 }
         .contentShape(Rectangle())
         .onTapGesture { losrennen(kurz: true) }
         .accessibilityHidden(true)
@@ -45,6 +49,27 @@ struct KatzeImKreis: View {
             try? await Task.sleep(for: .seconds(dauer + 0.1))
             if lauf == meiner { laeuft = false }
         }
+        // Rauchringe, solange sie in Fahrt ist
+        Task {
+            try? await Task.sleep(for: .seconds(0.5))
+            while lauf == meiner, laeuft {
+                let p = min(1, Date.now.timeIntervalSince(start) / dauer)
+                if tempo(p) > 0.15 {
+                    rauch.ausstossen(bei: schornstein(winkel: basis + strecke * sanft(p)),
+                                     weg: CGPoint(x: rahmen.midX, y: rahmen.midY))
+                }
+                try? await Task.sleep(for: .seconds(0.38))
+            }
+        }
+    }
+
+    /// Wo der Schornstein gerade ist, im Raum „suche“.
+    private func schornstein(winkel: Double) -> CGPoint {
+        // In der Lok: Schornstein bei (−8, −9) nach der Vierteldrehung, mal 1,7 – vom Ringpunkt aus gesehen.
+        let lokal = CGPoint(x: r - 13.6, y: -15.3)
+        let w = winkel + lokWinkel * .pi / 180
+        return CGPoint(x: rahmen.midX + lokal.x * cos(w) - lokal.y * sin(w),
+                       y: rahmen.midY + lokal.x * sin(w) + lokal.y * cos(w))
     }
 
     /// Langsam anlaufen, langsam auslaufen.
@@ -61,10 +86,12 @@ struct KatzeImKreis: View {
     private let strich = StrokeStyle(lineWidth: 2.4, lineCap: .round, lineJoin: .round)
     private var papier: GraphicsContext.Shading { .color(Color(.systemBackground)) }
 
-    /// Körper von hinten (Hinterteil) bis vorn (Hals); der Schwanz geht vom Hinterteil weiter nach hinten.
-    private let hinten = -200.0, vorn = -2.0, schwanzEnde = -300.0
+    /// Körper von hinten (Hinterteil) bis vorn (Hals), Kopf bei 10°.
+    private let hinten = -200.0, vorn = -2.0, kopfWinkel = 10.0
+    /// Die Lok steht genau in der Mitte der Lücke zwischen Kopf und Hinterteil – der Bauchmitte gegenüber.
+    private var lokWinkel: Double { (kopfWinkel + hinten + 360) / 2 }
 
-    private func zeichnen(_ ctx: GraphicsContext, groesse: CGSize, p: Double, zeit: Double) {
+    private func zeichnen(_ ctx: GraphicsContext, groesse: CGSize, p: Double) {
         let winkel = basis + strecke * sanft(p)
         let schwung = laeuft ? tempo(p) : 0
         // Beine und Maul hängen am zurückgelegten Weg – so werden sie mit ihr langsamer.
@@ -74,15 +101,16 @@ struct KatzeImKreis: View {
         ctx.translateBy(x: groesse.width / 2, y: groesse.height / 2)
         ctx.rotate(by: .radians(winkel))
 
-        schwanz(ctx, t: weg, schwung: schwung)
-        ortlich(ctx, winkel: .degrees(schwanzEnde + 360)) { c in
+        ortlich(ctx, winkel: .degrees(lokWinkel)) { c in
             var c = c
             c.scaleBy(x: 1.7, y: 1.7)
-            kleineLok(c, t: zeit, schwung: schwung)
+            // Vierteldrehung: Führerhaus zeigt nach außen
+            c.rotate(by: .degrees(90))
+            kleineLok(c)
         }
         beine(ctx, t: weg, schwung: schwung)
         koerper(ctx)
-        ortlich(ctx, winkel: .degrees(10)) { c in
+        ortlich(ctx, winkel: .degrees(kopfWinkel)) { c in
             kopf(c, t: weg, schwung: schwung)
         }
     }
@@ -162,29 +190,6 @@ struct KatzeImKreis: View {
         }
     }
 
-    /// Normal langer Schwanz mit einem Kringel (einer kleinen Schlinge) in der Mitte; an seinem Ende hängt die Lok.
-    private func schwanz(_ ctx: GraphicsContext, t: Double, schwung: Double) {
-        var s = Path()
-        let knick = 0.4
-        func bogen(_ f: Double) -> CGPoint {
-            // Leicht gewellt, wackelt beim Rennen
-            let welle = CGFloat(sin(f * 7 + t * 0.8 * schwung)) * 3 * CGFloat(sin(f * .pi))
-            return punkt(hinten + (schwanzEnde - hinten) * f, r + welle)
-        }
-        for i in 0...24 { let p = bogen(knick * Double(i) / 24); i == 0 ? s.move(to: p) : s.addLine(to: p) }
-        // Die Schlinge: einmal rundherum, nach außen gestellt
-        let g = (hinten + (schwanzEnde - hinten) * knick) * .pi / 180
-        let anfang = bogen(knick)
-        let schlinge: CGFloat = 9
-        let mitte = CGPoint(x: anfang.x + CGFloat(cos(g)) * schlinge, y: anfang.y + CGFloat(sin(g)) * schlinge)
-        for i in 1...28 {
-            let a = g + .pi - 2 * .pi * Double(i) / 28
-            s.addLine(to: CGPoint(x: mitte.x + CGFloat(cos(a)) * schlinge, y: mitte.y + CGFloat(sin(a)) * schlinge))
-        }
-        for i in 1...30 { s.addLine(to: bogen(knick + (1 - knick) * Double(i) / 30)) }
-        ctx.stroke(s, with: .foreground, style: StrokeStyle(lineWidth: 2.4, lineCap: .round, lineJoin: .round))
-    }
-
     /// Großer, struppiger Kopf mit großen runden Augen, die auf die Lok starren.
     private func kopf(_ c: GraphicsContext, t: Double, schwung: Double) {
         // Ohren zeigen nach innen (−x), also „nach oben“
@@ -236,8 +241,8 @@ struct KatzeImKreis: View {
         c.stroke(gesicht, with: .foreground, style: StrokeStyle(lineWidth: 1.6, lineCap: .round, lineJoin: .round))
     }
 
-    /// Winzige Lok in Strichoptik, fährt in +y.
-    private func kleineLok(_ c: GraphicsContext, t: Double, schwung: Double) {
+    /// Winzige Lok in Strichoptik: vorn bei +y, Führerhaus bei −y, Schornstein bei −x.
+    private func kleineLok(_ c: GraphicsContext) {
         var l = Path()
         l.addRoundedRect(in: CGRect(x: -4, y: -2, width: 8, height: 13), cornerSize: CGSize(width: 4, height: 4))
         l.addRect(CGRect(x: -6, y: -10, width: 12, height: 9))
@@ -249,18 +254,7 @@ struct KatzeImKreis: View {
             raeder.addEllipse(in: CGRect(x: 4, y: y - 2.5, width: 5, height: 5))
         }
         c.stroke(raeder, with: .foreground, style: StrokeStyle(lineWidth: 1.1))
-        // Dampf nur, solange sie fährt
-        guard schwung > 0.05 else { return }
-        for i in 0..<3 {
-            let p = (t * 1.8 + Double(i) / 3).truncatingRemainder(dividingBy: 1)
-            var w = Path()
-            let rr = 1.5 + p * 3.5
-            w.addEllipse(in: CGRect(x: -11 - p * 10 - rr, y: 8 - p * 14 - rr, width: rr * 2, height: rr * 2))
-            var cc = c
-            cc.opacity = (1 - p) * 0.8 * schwung
-            cc.stroke(w, with: .foreground, style: StrokeStyle(lineWidth: 1))
-        }
     }
 }
 
-#Preview { KatzeImKreis() }
+#Preview { KatzeImKreis(rauch: Rauch()) }

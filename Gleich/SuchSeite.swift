@@ -13,6 +13,7 @@ struct SuchSeite: View {
     /// Gewählte Abfahrtszeit; nil heißt jetzt.
     @State private var ab: Date?
     @State private var waehltZeit = false
+    @State private var rauch = Rauch()
     @FocusState private var fokus: Bool
 
     @State private var zuMerken: Ziel?
@@ -50,7 +51,7 @@ struct SuchSeite: View {
                 }
                 if text.trimmingCharacters(in: .whitespaces).isEmpty {
                     // Solange noch nichts gesucht ist: die Katze jagt ihren Lok-Schwanz.
-                    KatzeImKreis()
+                    KatzeImKreis(rauch: rauch)
                         .frame(maxWidth: .infinity)
                         .padding(.top, gemerkte.isEmpty ? 150 : 40)
                 }
@@ -62,6 +63,10 @@ struct SuchSeite: View {
             }
             .padding(.top, 20)
         }
+        .coordinateSpace(.named("suche"))
+        // Rauchringe und Sprüche über der ganzen Suche
+        .overlay { RauchBild(rauch: rauch) }
+        .onChange(of: text) { _, neu in if !neu.isEmpty { rauch.leeren() } }
         .scrollDismissesKeyboard(.interactively)
         .defaultScrollAnchor(.top)
         .background(.background)
