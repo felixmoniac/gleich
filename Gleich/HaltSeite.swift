@@ -74,7 +74,7 @@ struct HaltSeite: View {
                 }
                 Section("Daten: Transitous\(modell.halt.quelle == .vbb ? " · VBB" : "")") { }
             }
-            let fuss = Int((umgebung.gehzeit(zu: modell.halt) / 60).rounded(.up))
+            let fuss = Int((umgebung.gehzeit(zu: modell.halt) / 60).rounded())
             if fuss > 1 {
                 HStack(spacing: 3) {
                     Image(systemName: "figure.walk")

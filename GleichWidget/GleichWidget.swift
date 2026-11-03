@@ -30,14 +30,20 @@ struct Lieferant: TimelineProvider {
         guard let ort = await ort() else {
             return [Eintrag(date: jetzt, halt: nil, abfahrten: [])]
         }
-        guard let halt = try? await Fahrplan.haltestellen(bei: ort.coordinate).first else {
-            return [Eintrag(date: jetzt, halt: nil, abfahrten: Ablage.lesen([Abfahrt].self, "widget") ?? [])]
+        guard let alle = try? await Fahrplan.kandidaten(bei: ort.coordinate), !alle.isEmpty else {
+            return [Eintrag(date: jetzt, halt: nil, abfahrten: [])]
+        }
+        // Echte Fußwege wie in der App; Widgets haben wenig Zeit, deshalb kürzere Frist.
+        let wege = await Gehwege.zeiten(von: ort, zu: Gehwege.auswahl(alle, um: ort), frist: 5)
+        let gehzeit = { (h: Haltestelle) in wege[h.id] ?? Fahrplan.gehzeit(von: ort, zu: h) }
+        guard let halt = Fahrplan.auswaehlen(alle, gehzeit: gehzeit).first else {
+            return [Eintrag(date: jetzt, halt: nil, abfahrten: [])]
         }
         if halt.ort.distance(from: ort) > Fahrplan.jwdMeter {
             return [Eintrag(date: jetzt, halt: nil, abfahrten: [], jwd: true)]
         }
         let abfahrten = (try? await Fahrplan.abfahrten(halt).abfahrten) ?? []
-        let gehen = Fahrplan.gehzeit(von: ort, zu: halt)
+        let gehen = gehzeit(halt)
         let ortsname = Namen.ort(aus: halt.name)
         let liste = abfahrten
             .filter { !$0.faelltAus }

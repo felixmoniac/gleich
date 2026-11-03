@@ -152,14 +152,18 @@ struct LokScroll<Inhalt: View>: View {
                 }
             }
             .overlay(alignment: .top) {
-                // Beim Ziehen rollt die Lok von links herein.
-                if phase == .ruhe, zug > 4 {
+                // Beim Ziehen rollt die Lok von links herein – nur in der Lücke über der Liste,
+                // damit sie nie über die Abfahrten fährt. Sie steht auf dem unteren Rand der Lücke.
+                if phase == .ruhe, zug > 24 {
                     let anteil = min(zug / schwelle, 1)
                     let x = -(breite / 2 + 50) * (1 - anteil)
                     Lok(ruckelt: false, strecke: x)
                         .scaleEffect(1.2)
-                        .offset(x: x, y: max(0, zug / 2 - Lok.groesse.height / 2))
-                        .opacity(Double(min(1, zug / 30)))
+                        .offset(x: x)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+                        .frame(height: zug)
+                        .clipped()
+                        .opacity(Double(min(1, (zug - 24) / 30)))
                         .allowsHitTesting(false)
                 }
             }
