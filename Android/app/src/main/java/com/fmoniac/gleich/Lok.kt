@@ -4,6 +4,14 @@ import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.EaseIn
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
+import kotlinx.coroutines.withTimeoutOrNull
+import kotlinx.coroutines.flow.first
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.Constraints
+import androidx.compose.ui.layout.layout
+import androidx.compose.runtime.snapshotFlow
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -102,9 +110,12 @@ object LokZeichnung {
     const val BREITE = 76f
     const val HOEHE = 74f
 
-    /** Die Lok selbst, ohne Dampf: fährt nach rechts (+x), Schornstein oben (−y), Räder unten bei y ≈ 54. */
-    fun DrawScope.koerper(farbe: Color, winkel: Double) {
-        val s = strich(1.8f)
+    val DICK = strich(1.8f)
+    val DUENN = strich(1.3f)
+    private val STANGE = strich(2f)
+
+    /** Alles, was sich nicht bewegt – einmal gebaut, dann immer wieder gezeichnet. */
+    private val rahmen: Path by lazy {
         val p = Path()
         // Kessel mit runder Rauchkammer vorne
         p.rund(30f, 28f, 34f, 14f, 7f)
@@ -122,29 +133,43 @@ object LokZeichnung {
         p.linie(7f, 42f, 66f, 42f)
         p.linie(3f, 39f, 7f, 39f)
         p.moveTo(64f, 42f); p.lineTo(71f, 51f); p.lineTo(62f, 51f)
-        drawPath(p, farbe, style = s)
-
-        // Räder mit Speichen und Kuppelstange
-        val raeder = listOf(Triple(21f, 46f, 8.5f), Triple(42f, 48.5f, 6f), Triple(56f, 48.5f, 6f))
+        p
+    }
+    private val RAEDER = listOf(Triple(21f, 46f, 8.5f), Triple(42f, 48.5f, 6f), Triple(56f, 48.5f, 6f))
+    private val radkreise: Path by lazy {
         val r = Path()
-        for ((mx, my, radius) in raeder) {
-            r.oval(mx - radius, my - radius, radius * 2, radius * 2)
-            for (i in 0 until 3) {
-                val w = winkel + i * Math.PI / 3
-                val dx = (cos(w) * radius * 0.8).toFloat()
-                val dy = (sin(w) * radius * 0.8).toFloat()
-                r.linie(mx - dx, my - dy, mx + dx, my + dy)
-            }
-        }
-        drawPath(r, farbe, style = strich(1.3f))
+        for ((mx, my, radius) in RAEDER) r.oval(mx - radius, my - radius, radius * 2, radius * 2)
+        r
+    }
+
+    /** Die Lok selbst, ohne Dampf: fährt nach rechts (+x), Schornstein oben (−y), Räder unten bei y ≈ 54. */
+    fun DrawScope.koerper(farbe: Color, winkel: Double) {
+        drawPath(rahmen, farbe, style = DICK)
+        // Räder mit Speichen und Kuppelstange
+        drawPath(radkreise, farbe, style = DUENN)
+        val r = Path()
+        for ((mx, my, radius) in RAEDER) speichen(r, mx, my, radius, winkel)
+        drawPath(r, farbe, style = DUENN)
         val kx = (cos(winkel) * 3.5).toFloat()
         val ky = (sin(winkel) * 3.5).toFloat()
         val stange = Path()
         stange.moveTo(21 + kx * 1.3f, 46 + ky * 1.3f)
         stange.lineTo(42 + kx, 48.5f + ky)
         stange.lineTo(56 + kx, 48.5f + ky)
-        drawPath(stange, farbe, style = strich(2f))
+        drawPath(stange, farbe, style = STANGE)
     }
+
+    /** Drei Speichen eines Rads, gedreht um `winkel`. */
+    fun speichen(r: Path, mx: Float, my: Float, radius: Float, winkel: Double) {
+        for (i in 0 until 3) {
+            val w = winkel + i * Math.PI / 3
+            val dx = (cos(w) * radius * 0.8).toFloat()
+            val dy = (sin(w) * radius * 0.8).toFloat()
+            r.linie(mx - dx, my - dy, mx + dx, my + dy)
+        }
+    }
+
+    private val WOLKE = Stroke(1.3f)
 
     fun DrawScope.dampf(farbe: Color, t: Double, hupf: Double) {
         for (i in 0 until 4) {
@@ -157,7 +182,7 @@ object LokZeichnung {
             w.oval(x - r, y - r * 0.8f, r * 2, r * 1.6f)
             w.oval(x - r * 1.6f, y - r * 0.3f, r * 1.3f, r * 1.1f)
             w.oval(x + r * 0.4f, y - r * 0.2f, r * 1.2f, r)
-            drawPath(w, farbe.copy(alpha = ((1 - phase) * 0.85).toFloat()), style = Stroke(1.3f))
+            drawPath(w, farbe.copy(alpha = ((1 - phase) * 0.85).toFloat()), style = WOLKE)
         }
     }
 }
@@ -165,10 +190,11 @@ object LokZeichnung {
 /**
  * Kleine Dampflok in Strichoptik. Fährt nach rechts.
  * `ruckelt`: tuckert auf der Stelle (hüpft, wackelt, dampft).
- * `strecke`: zurückgelegter Weg in dp – dreht die Räder beim Hereinrollen.
+ * `strecke`: zurückgelegter Weg in dp – dreht die Räder beim Hereinrollen. Wird erst beim Zeichnen gelesen,
+ * damit sich beim Ziehen nur das Bild erneuert und nicht die ganze Seite.
  */
 @Composable
-fun Lok(ruckelt: Boolean, modifier: Modifier = Modifier, strecke: Float = 0f) {
+fun Lok(ruckelt: Boolean, modifier: Modifier = Modifier, strecke: () -> Float = { 0f }) {
     val farbe = MaterialTheme.colorScheme.onBackground
     val uhr = rememberUhr(ruckelt)
     Canvas(modifier.size(LokZeichnung.BREITE.dp, LokZeichnung.HOEHE.dp)) {
@@ -180,7 +206,7 @@ fun Lok(ruckelt: Boolean, modifier: Modifier = Modifier, strecke: Float = 0f) {
                 val hupf = if (ruckelt) -abs(sin(t * 11)) * 2.2 - max(0.0, sin(t * 3.7)) * 1.2 else 0.0
                 val kipp = if (ruckelt) sin(t * 6.5) * 0.05 + sin(t * 15.3) * 0.015 else 0.0
                 val ruck = if (ruckelt) sin(t * 17) * 0.6 else 0.0
-                val winkel = if (ruckelt) t * 9 else strecke / 7.0
+                val winkel = if (ruckelt) t * 9 else strecke() / 7.0
                 with(LokZeichnung) {
                     if (ruckelt) dampf(farbe, t, hupf)
                     verschoben((38 + ruck).toFloat(), (50 + hupf).toFloat()) {
@@ -200,6 +226,9 @@ private enum class LokPhase { ruhe, laden, abfahrt }
  * Scrollbereich mit eigenem „Runterziehen zum Aktualisieren“: Statt eines Kreisels rollt die Lok herein,
  * tuckert, solange geladen wird, und dampft danach rechts davon.
  * `unten`: Inhalt unten bündig – kurze Listen enden am unteren Rand statt oben zu kleben.
+ *
+ * Sparsam: Alles, was sich bei jedem Bild ändert (Ziehweg, Abfahrt), wird erst beim Anordnen oder Zeichnen gelesen –
+ * so baut Android dabei nicht die ganze Seite neu auf, sondern verschiebt und malt nur die Lok.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -212,10 +241,16 @@ fun LokScroll(
 ) {
     val zustand = rememberPullToRefreshState()
     val bereich = rememberCoroutineScope()
+    // Immer der neueste Stand – auch in Abläufen, die schon vor einer Weile gestartet sind.
+    val laedtJetzt by rememberUpdatedState(laedt)
     var phase by remember { mutableStateOf(LokPhase.ruhe) }
     var start by remember { mutableLongStateOf(0L) }
     val weg = remember { Animatable(0f) }
-    var breite by remember { mutableStateOf(400f) }
+    val breite = remember { floatArrayOf(400f) }
+    // Nach der Abfahrt gleitet die Ziehanzeige von selbst zurück. Dabei darf die Lok nicht
+    // noch einmal auftauchen und nach links aus dem Bild rollen.
+    var verborgen by remember { mutableStateOf(false) }
+    val zieht by remember { derivedStateOf { zustand.distanceFraction > 0.005f } }
 
     fun abfahren() {
         if (phase != LokPhase.laden) return
@@ -223,11 +258,14 @@ fun LokScroll(
             // Die Lok soll man wenigstens kurz tuckern sehen.
             val rest = max(0L, 900 - (System.currentTimeMillis() - start))
             delay(rest)
-            if (phase != LokPhase.laden || laedt) return@launch
+            if (phase != LokPhase.laden || laedtJetzt) return@launch
             phase = LokPhase.abfahrt
-            weg.animateTo(breite / 2 + 60, tween(750, easing = EaseIn))
+            weg.animateTo(breite[0] / 2 + 60, tween(750, easing = EaseIn))
+            verborgen = true
             phase = LokPhase.ruhe
             weg.snapTo(0f)
+            withTimeoutOrNull(2000) { snapshotFlow { zustand.distanceFraction }.first { it <= 0f } }
+            verborgen = false
         }
     }
 
@@ -252,14 +290,15 @@ fun LokScroll(
                     bereich.launch {
                         weg.snapTo(0f)
                         start = System.currentTimeMillis()
+                        verborgen = false
                         phase = LokPhase.laden
                         aktualisieren()
-                        if (!laedt) abfahren()
+                        if (!laedtJetzt) abfahren()
                     }
                 },
             )
     ) {
-        breite = maxWidth.value
+        breite[0] = maxWidth.value
         val hoehe = maxHeight
         Column(
             Modifier
@@ -270,21 +309,29 @@ fun LokScroll(
         ) {
             if (phase != LokPhase.ruhe) {
                 Box(Modifier.fillMaxWidth().height(84.dp), contentAlignment = Alignment.Center) {
-                    Lok(ruckelt = true, modifier = Modifier.offset(x = weg.value.dp))
+                    Lok(ruckelt = true, modifier = Modifier.offset { IntOffset(weg.value.dp.roundToPx(), 0) })
                 }
-            } else {
+            } else if (zieht) {
                 // Beim Ziehen rollt die Lok von links herein – erst, wenn die Lücke groß genug für die ganze Lok ist.
-                val zug = zustand.distanceFraction * 100f
-                if (zug > 0.5f) {
-                    Box(
-                        Modifier.fillMaxWidth().height(zug.dp).clipToBounds(),
-                        contentAlignment = Alignment.BottomCenter,
-                    ) {
-                        if (zug >= 52f) {
-                            val anteil = min((zug - 52f) / (100f - 52f), 1f)
-                            val x = -(breite / 2 + 50) * (1 - anteil)
-                            Lok(ruckelt = false, strecke = x, modifier = Modifier.offset(x = x.dp))
+                fun zug() = zustand.distanceFraction * 100f
+                fun x(): Float {
+                    val anteil = ((zug() - 52f) / (100f - 52f)).coerceIn(0f, 1f)
+                    return -(breite[0] / 2 + 50) * (1 - anteil)
+                }
+                Box(
+                    Modifier
+                        .fillMaxWidth()
+                        .layout { messbar, grenzen ->
+                            // Nach der Abfahrt schließt sich die Lücke ohne Sprung aus der Ladehöhe heraus.
+                            val h = (if (verborgen) min(zug(), 84f) else zug()).dp.roundToPx()
+                            val teil = messbar.measure(Constraints.fixed(grenzen.maxWidth, h))
+                            layout(grenzen.maxWidth, h) { teil.place(0, 0) }
                         }
+                        .clipToBounds(),
+                    contentAlignment = Alignment.BottomCenter,
+                ) {
+                    if (!verborgen) {
+                        Lok(ruckelt = false, strecke = ::x, modifier = Modifier.offset { IntOffset(x().dp.roundToPx(), 0) })
                     }
                 }
             }

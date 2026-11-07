@@ -36,6 +36,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
@@ -389,6 +390,9 @@ fun WollalarmSpiel(schliessen: () -> Unit) {
             }
         }
     }
+    // Punkte und Spielstand werden bei jedem Bild nachgesehen, die Anzeige baut sich aber nur neu auf, wenn sie sich ändern.
+    val punkte by remember { derivedStateOf { bildNr; spiel.punkte } }
+    val phase by remember { derivedStateOf { bildNr; spiel.phase } }
     val farbe = MaterialTheme.colorScheme.onBackground
     val messer = rememberTextMeasurer()
 
@@ -419,12 +423,12 @@ fun WollalarmSpiel(schliessen: () -> Unit) {
             }
             // Punkte und Rekord oben
             Row(Modifier.fillMaxWidth().padding(start = 20.dp, end = 76.dp, top = 14.dp)) {
-                Text("%05d".format(spiel.punkte.also { bildNr }), fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold, fontSize = 17.sp)
+                Text("%05d".format(punkte), fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold, fontSize = 17.sp)
                 Spacer(Modifier.weight(1f))
                 Text("Rekord " + "%05d".format(spiel.rekord), fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold, fontSize = 17.sp, color = zweitrangig)
             }
             // Start- und Endtafel
-            when (spiel.phase.also { bildNr }) {
+            when (phase) {
                 Wollalarm.Phase.start -> Column(Modifier.align(Alignment.Center), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(14.dp)) {
                     Text("Wollalarm", fontSize = 44.sp, fontWeight = FontWeight.Black)
                     Text("Wippe: fahren · Dampf: pusten", color = zweitrangig)

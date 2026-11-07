@@ -1,6 +1,7 @@
 package com.fmoniac.gleich
 
-import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
@@ -25,26 +26,31 @@ fun JWDBild(modifier: Modifier = Modifier) {
     val papier = MaterialTheme.colorScheme.background
     val uhr = rememberUhr()
     val messer = rememberTextMeasurer()
-    Canvas(modifier.requiredSize(320.dp, 230.dp)) {
-        val t = uhr.value
+    // Acker, Schild und das „H“ entstehen nur einmal; bei jedem Bild bewegen sich nur Kuh und Steppenläufer.
+    Spacer(modifier.requiredSize(320.dp, 230.dp).drawWithCache {
         val breite = size.width / density
         val hoehe = size.height / density
-        inDp {
-            val s = strich(1.8f)
-            drawPath(landschaft(breite, hoehe), farbe, style = s)
-            // Kuh und Schild decken die Ackerfurchen dahinter ab.
-            val kuh = kuh(t)
-            drawPath(kuh, papier)
-            drawPath(kuh, farbe, style = s)
-            val schild = schild()
-            drawPath(schild, papier)
-            drawPath(schild, farbe, style = s)
-            drawPath(steppenlaeufer(t, breite), farbe, style = Stroke(1.2f))
-        }
-        // Das „H“ im Schild – Text wird in Bildpunkten gemessen, daher außerhalb der dp-Zeichnung.
+        val s = strich(1.8f)
+        val land = landschaft(breite, hoehe)
+        val schild = schild()
         val h = messer.measure("H", TextStyle(fontSize = (15f / fontScale).sp, fontWeight = FontWeight.Black, color = farbe))
-        drawText(h, topLeft = Offset(101f * density - h.size.width / 2f, 64f * density - h.size.height / 2f))
-    }
+        val hOrt = Offset(101f * density - h.size.width / 2f, 64f * density - h.size.height / 2f)
+        onDrawBehind {
+            val t = uhr.value
+            inDp {
+                drawPath(land, farbe, style = s)
+                // Kuh und Schild decken die Ackerfurchen dahinter ab.
+                val kuh = kuh(t)
+                drawPath(kuh, papier)
+                drawPath(kuh, farbe, style = s)
+                drawPath(schild, papier)
+                drawPath(schild, farbe, style = s)
+                drawPath(steppenlaeufer(t, breite), farbe, style = Stroke(1.2f))
+            }
+            // Das „H“ im Schild – Text wird in Bildpunkten gemessen, daher außerhalb der dp-Zeichnung.
+            drawText(h, topLeft = hOrt)
+        }
+    })
 }
 
 private fun landschaft(breite: Float, hoehe: Float): Path {

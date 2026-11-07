@@ -133,16 +133,16 @@ private fun DrawScope.zeichnen(winkel: Double, farbe: Color, papier: Color) {
     // Räder drehen sich mit dem zurückgelegten Weg – so werden sie mit dem Zug langsamer.
     val rad = winkel * 18
     verschoben(125f, 125f) {
-        gleis(farbe)
+        drawPath(Teile.gleis, farbe.copy(alpha = 0.5f), style = Teile.GLEIS)
         gedreht(Math.toDegrees(winkel).toFloat()) {
             // Wagen von hinten nach vorn, jeweils als Sehne auf dem Kreis, damit beide Achsen auf dem Gleis stehen.
             // Die Lok fährt in Richtung wachsender Winkel; die Wagen hängen dahinter.
             val lokHinten = 34 * MASSSTAB
             val l = WAGEN_LAENGE * MASSSTAB
+            val halb = asin((l / 2 / R).toDouble())
             for (i in WAGEN - 1 downTo 0) {
                 val abstand = lokHinten + KUPPLUNG + l / 2 + i * (l + KUPPLUNG)
                 val mitte = -(abstand / R).toDouble()
-                val halb = asin((l / 2 / R).toDouble())
                 gedreht(Math.toDegrees(mitte).toFloat()) {
                     verschoben(R * cos(halb).toFloat(), 0f) {
                         skaliert(MASSSTAB) {
@@ -158,10 +158,7 @@ private fun DrawScope.zeichnen(winkel: Double, farbe: Color, papier: Color) {
                 skaliert(MASSSTAB) {
                     gedreht(90f) {
                         verschoben(-37f, -54f) {
-                            val hinten = Path()
-                            hinten.rechteck(10f, 18f, 20f, 24f)
-                            hinten.rund(30f, 28f, 34f, 14f, 7f)
-                            drawPath(hinten, papier)
+                            drawPath(Teile.lokHinten, papier)
                             with(LokZeichnung) { koerper(farbe, rad) }
                         }
                     }
@@ -171,48 +168,61 @@ private fun DrawScope.zeichnen(winkel: Double, farbe: Color, papier: Color) {
     }
 }
 
-/** Ein schmales rundes Gleis mit kurzen Schwellen nach innen. */
-private fun DrawScope.gleis(farbe: Color) {
-    val g = Path()
-    g.oval(-R, -R, 2 * R, 2 * R)
-    for (i in 0 until 36) {
-        val w = i / 36.0 * 2 * Math.PI
-        g.linie((cos(w) * R).toFloat(), (sin(w) * R).toFloat(), (cos(w) * (R - 5)).toFloat(), (sin(w) * (R - 5)).toFloat())
+/** Was sich nicht bewegt, wird nur einmal gebaut. */
+private object Teile {
+    val GLEIS = strich(1.2f)
+
+    /** Ein schmales rundes Gleis mit kurzen Schwellen nach innen. */
+    val gleis: Path by lazy {
+        val g = Path()
+        g.oval(-R, -R, 2 * R, 2 * R)
+        for (i in 0 until 36) {
+            val w = i / 36.0 * 2 * Math.PI
+            g.linie((cos(w) * R).toFloat(), (sin(w) * R).toFloat(), (cos(w) * (R - 5)).toFloat(), (sin(w) * (R - 5)).toFloat())
+        }
+        g
     }
-    drawPath(g, farbe.copy(alpha = 0.5f), style = strich(1.2f))
+
+    /** Führerhaus und Kessel der Lok, mit Papier gefüllt, damit das Gleis nicht durchscheint. */
+    val lokHinten: Path by lazy {
+        val p = Path()
+        p.rechteck(10f, 18f, 20f, 24f)
+        p.rund(30f, 28f, 34f, 14f, 7f)
+        p
+    }
+
+    val kasten: Path by lazy { Path().apply { rund(4f, 24f, 36f, 18f, 2f) } }
+
+    val wagenLinien: Path by lazy {
+        val p = Path()
+        p.rund(4f, 24f, 36f, 18f, 2f)
+        // Gewölbtes Dach mit kleinem Überstand
+        p.moveTo(2f, 24f); p.bogen(42f, 24f, 22f, 16f)
+        // Drei Fenster
+        for (x in listOf(8f, 19f, 30f)) p.rund(x, 28f, 7f, 7f, 1.5f)
+        // Rahmen und Puffer vorn und hinten
+        p.linie(3f, 42f, 41f, 42f)
+        p.linie(0f, 39f, 4f, 39f)
+        p.linie(40f, 39f, 44f, 39f)
+        p
+    }
+
+    val RAEDER = floatArrayOf(11f, 33f)
+    val raeder: Path by lazy {
+        val r = Path()
+        for (mx in RAEDER) r.oval(mx - 6f, 48.5f - 6f, 12f, 12f)
+        r
+    }
 }
 
 /** Ein Personenwagen im Stil der Lok: fährt nach rechts (+x), Dach oben (−y), Räder unten bei y ≈ 54,5. */
 private fun DrawScope.wagen(winkel: Double, farbe: Color, papier: Color) {
-    val kasten = Path()
-    kasten.rund(4f, 24f, 36f, 18f, 2f)
-    drawPath(kasten, papier)
-
-    val p = Path()
-    p.rund(4f, 24f, 36f, 18f, 2f)
-    // Gewölbtes Dach mit kleinem Überstand
-    p.moveTo(2f, 24f); p.bogen(42f, 24f, 22f, 16f)
-    // Drei Fenster
-    for (x in listOf(8f, 19f, 30f)) p.rund(x, 28f, 7f, 7f, 1.5f)
-    // Rahmen und Puffer vorn und hinten
-    p.linie(3f, 42f, 41f, 42f)
-    p.linie(0f, 39f, 4f, 39f)
-    p.linie(40f, 39f, 44f, 39f)
-    drawPath(p, farbe, style = strich(1.8f))
-
+    drawPath(Teile.kasten, papier)
+    drawPath(Teile.wagenLinien, farbe, style = LokZeichnung.DICK)
     // Zwei Räder mit Speichen
-    val r = Path()
-    for (mx in listOf(11f, 33f)) {
-        val my = 48.5f
-        val radius = 6f
-        r.oval(mx - radius, my - radius, radius * 2, radius * 2)
-        for (i in 0 until 3) {
-            val w = winkel + i * Math.PI / 3
-            val dx = (cos(w) * radius * 0.8).toFloat()
-            val dy = (sin(w) * radius * 0.8).toFloat()
-            r.linie(mx - dx, my - dy, mx + dx, my + dy)
-        }
-    }
-    drawPath(r, papier)
-    drawPath(r, farbe, style = strich(1.3f))
+    drawPath(Teile.raeder, papier)
+    drawPath(Teile.raeder, farbe, style = LokZeichnung.DUENN)
+    val sp = Path()
+    for (mx in Teile.RAEDER) LokZeichnung.speichen(sp, mx, 48.5f, 6f, winkel)
+    drawPath(sp, farbe, style = LokZeichnung.DUENN)
 }

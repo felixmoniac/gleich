@@ -7,7 +7,6 @@ import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.waitForUpOrCancellation
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
@@ -18,15 +17,16 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableDoubleStateOf
+import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.State
+import androidx.compose.runtime.key
+import androidx.compose.ui.graphics.BlurEffect
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameMillis
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.draw.blur
-import androidx.compose.ui.draw.scale
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
@@ -231,46 +231,57 @@ fun Modifier.wolkenTippen(rauch: Rauch): Modifier = pointerInput(rauch) {
     }
 }
 
-/** Liegt über der ganzen Suche und zeigt Wolken und Sprüche; Berührungen gehen hindurch. */
+/**
+ * Liegt über der ganzen Suche und zeigt Wolken und Sprüche; Berührungen gehen hindurch.
+ * Die Uhr wird nur beim Zeichnen gelesen – bei jedem Bild wird gemalt, aber nichts neu aufgebaut.
+ */
 @Composable
 fun RauchBild(rauch: Rauch, modifier: Modifier = Modifier) {
     val farbe = MaterialTheme.colorScheme.onBackground
     val hinten = MaterialTheme.colorScheme.background
     val dichte = LocalDensity.current.density
-    var jetzt by remember { mutableDoubleStateOf(System.currentTimeMillis().toDouble()) }
+    val jetzt = remember { mutableLongStateOf(System.currentTimeMillis()) }
+    val flaeche = remember { floatArrayOf(0f, 0f) }
     val leer = rauch.istLeer
     LaunchedEffect(leer) {
+        var bild = 0
         while (!rauch.istLeer) {
             withFrameMillis { }
             val t = System.currentTimeMillis()
-            jetzt = t.toDouble()
-            rauch.aufraeumen(t)
+            jetzt.longValue = t
+            // Aufräumen reicht alle paar Bilder; Verblasstes ist ohnehin unsichtbar.
+            if (bild++ % 10 == 0) rauch.aufraeumen(t)
         }
     }
-    BoxWithConstraints(
+    Box(
         modifier
             .fillMaxSize()
-            .onGloballyPositioned { rauch.flaeche = it.positionInRoot(); rauch.dichte = dichte }
+            .onGloballyPositioned {
+                rauch.flaeche = it.positionInRoot()
+                rauch.dichte = dichte
+                flaeche[0] = it.size.width / dichte
+                flaeche[1] = it.size.height / dichte
+            }
     ) {
-        val flaecheB = maxWidth.value
-        val flaecheH = maxHeight.value
-        val t = jetzt.toLong()
         Canvas(Modifier.fillMaxSize()) {
+            val t = jetzt.longValue
             inDp {
                 for (ring in rauch.ringe) {
                     val z = Rauch.zustand(ring, t)
+                    if (z.deckkraft <= 0f) continue
                     val alter = (t - ring.geburt) / 1000.0
                     val pfad = Rauch.wolke(ring.form, alter, z.ort, z.radius)
                     drawPath(pfad, farbe.copy(alpha = 0.04f * z.deckkraft))
-                    drawPath(pfad, farbe.copy(alpha = 0.55f * z.deckkraft), style = strich(1.6f))
+                    drawPath(pfad, farbe.copy(alpha = 0.55f * z.deckkraft), style = RAND)
                 }
                 // Zerplatzende Wolken: blähen sich kurz auf und zerfallen in kleine Fetzen, die davonstieben.
                 for (p in rauch.platzer) {
                     val f = min(1.0, (t - p.geburt) / 1000.0 / Rauch.PLATZ_DAUER).toFloat()
+                    if (f >= 1f) continue
                     val raus = 1 - (1 - f) * (1 - f)
                     drawPath(
                         Rauch.wolke(p.form, 0.0, p.ort, p.radius * (1 + 0.3f * raus)),
-                        farbe.copy(alpha = 0.55f * max(0f, 1 - f * 2.5f)), style = Stroke(1.6f),
+                        farbe.copy(alpha = 0.55f * max(0f, 1 - f * 2.5f)), style = PLATZ,
                     )
                     p.fetzen.forEachIndexed { i, w ->
                         val weite = (p.radius + 8) * (0.6f + 0.7f * raus)
@@ -278,41 +289,61 @@ fun RauchBild(rauch: Rauch, modifier: Modifier = Modifier) {
                         drawCircle(
                             farbe.copy(alpha = 0.5f * (1 - f)), g,
                             Offset(p.ort.x + weite * cos(w).toFloat(), p.ort.y + weite * sin(w).toFloat()),
-                            style = Stroke(1.4f),
+                            style = FETZEN,
                         )
                     }
                 }
             }
         }
         for (s in rauch.sprueche) {
-            val a = (t - s.geburt) / 1000.0
-            val ein = min(1.0, a / 0.6).toFloat()
-            val aus = (if (a > Rauch.SPRUCH_DAUER - 1.6) max(0.0, (Rauch.SPRUCH_DAUER - a) / 1.6) else 1.0).toFloat()
-            val breite = 260f
-            // Im Bild halten, auch wenn die Wolke am Rand war
-            val x = min(max(s.ort.x, breite / 2 + 16), flaecheB - breite / 2 - 16)
-            val y = min(max(s.ort.y, 60f), flaecheH - 140)
-            Box(
-                Modifier
-                    .offset { IntOffset(((x - breite / 2) * dichte).toInt(), ((y - 40) * dichte).toInt()) }
-                    .width(breite.dp)
-                    .scale(0.9f + 0.1f * ein)
-                    .alpha(ein * aus)
-                    .then(if (Build.VERSION.SDK_INT >= 31) Modifier.blur(((1 - aus) * 6).dp) else Modifier)
-                    .background(hinten.copy(alpha = 0.85f), RoundedCornerShape(14.dp))
-                    .padding(vertical = 10.dp, horizontal = 8.dp),
-            ) {
-                Text(
-                    s.text,
-                    fontFamily = FontFamily.Serif,
-                    fontStyle = FontStyle.Italic,
-                    fontSize = 20.sp,
-                    lineHeight = 26.sp,
-                    textAlign = TextAlign.Center,
-                    color = farbe,
-                    modifier = Modifier.width(breite.dp),
-                )
-            }
+            key(s) { Spruchkarte(s, jetzt, flaeche, farbe, hinten) }
         }
+    }
+}
+
+private val RAND = strich(1.6f)
+private val PLATZ = Stroke(1.6f)
+private val FETZEN = Stroke(1.4f)
+
+/** Ein Zen-Spruch, der sanft erscheint und wieder verschwimmt – Ort und Blende werden erst beim Zeichnen berechnet. */
+@Composable
+private fun Spruchkarte(s: Rauch.Spruch, jetzt: State<Long>, flaeche: FloatArray, farbe: Color, hinten: Color) {
+    val breite = 260f
+    Box(
+        Modifier
+            .offset {
+                // Im Bild halten, auch wenn die Wolke am Rand war
+                val x = min(max(s.ort.x, breite / 2 + 16), flaeche[0] - breite / 2 - 16)
+                val y = min(max(s.ort.y, 60f), flaeche[1] - 140)
+                IntOffset(((x - breite / 2) * density).toInt(), ((y - 40) * density).toInt())
+            }
+            .width(breite.dp)
+            .graphicsLayer {
+                val a = (jetzt.value - s.geburt) / 1000.0
+                val ein = min(1.0, a / 0.6).toFloat()
+                val aus = (if (a > Rauch.SPRUCH_DAUER - 1.6) max(0.0, (Rauch.SPRUCH_DAUER - a) / 1.6) else 1.0).toFloat()
+                val g = 0.9f + 0.1f * ein
+                scaleX = g
+                scaleY = g
+                alpha = ein * aus
+                if (Build.VERSION.SDK_INT >= 31) {
+                    val r = (1 - aus) * 6.dp.toPx()
+                    renderEffect = if (r > 0.5f) BlurEffect(r, r) else null
+                    clip = r > 0.5f
+                }
+            }
+            .background(hinten.copy(alpha = 0.85f), RoundedCornerShape(14.dp))
+            .padding(vertical = 10.dp, horizontal = 8.dp),
+    ) {
+        Text(
+            s.text,
+            fontFamily = FontFamily.Serif,
+            fontStyle = FontStyle.Italic,
+            fontSize = 20.sp,
+            lineHeight = 26.sp,
+            textAlign = TextAlign.Center,
+            color = farbe,
+            modifier = Modifier.width(breite.dp),
+        )
     }
 }

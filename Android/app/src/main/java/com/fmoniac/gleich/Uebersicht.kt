@@ -182,8 +182,9 @@ private fun PlanAnsicht(plaene: Planablage, plan: Netzplan, schliessen: () -> Un
                 val breitePx = constraints.maxWidth
                 var bild by remember { mutableStateOf<Bitmap?>(null) }
                 LaunchedEffect(plan.id) {
-                    // Doppelt so fein wie der Bildschirm, damit beim Hineinzoomen die Schrift scharf bleibt.
-                    bild = withContext(Dispatchers.IO) { PdfBild.seite(plaene.datei(plan), (breitePx * 2.5).toInt().coerceAtMost(4000)) }
+                    // Doppelt so fein wie der Bildschirm, damit beim Hineinzoomen die Schrift scharf bleibt –
+                    // aber gedeckelt, sonst wird ein großer Plan auf älteren Geräten zum Speicherfresser.
+                    bild = withContext(Dispatchers.IO) { PdfBild.seite(plaene.datei(plan), (breitePx * 2).coerceAtMost(2400)) }
                 }
                 var zoom by remember { mutableFloatStateOf(1f) }
                 var versatz by remember { mutableStateOf(Offset.Zero) }

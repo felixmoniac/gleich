@@ -1,0 +1,3 @@
+# Alles aus Gleich gleich beim ersten Start vorübersetzen – hilft älteren Geräten gegen Ruckeln.
+HSPLcom/fmoniac/gleich/**;->**(**)**
+Lcom/fmoniac/gleich/**;
