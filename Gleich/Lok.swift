@@ -112,6 +112,8 @@ struct Lok: View {
 /// tuckert, solange geladen wird, und dampft danach rechts davon.
 struct LokScroll<Inhalt: View>: View {
     var laedt: Bool
+    /// Inhalt unten bündig: Kurze Listen enden am unteren Rand statt oben zu kleben.
+    var unten = false
     var aktualisieren: () async -> Void
     @ViewBuilder var inhalt: () -> Inhalt
 
@@ -143,6 +145,7 @@ struct LokScroll<Inhalt: View>: View {
                     .frame(height: phase == .ruhe ? 0 : hoehe)
                     inhalt()
                 }
+                .frame(minHeight: unten ? geo.size.height : 0, alignment: .bottom)
             }
             .scrollIndicators(.hidden)
             .onScrollGeometryChange(for: CGFloat.self) { g in

@@ -1,11 +1,10 @@
 import SwiftUI
 
 /// Eine Haltestelle: Name, bei Bedarf Symbolreihe, darunter die Abfahrten.
-/// Tipp auf den Namen oder aufs Männchen zeigt den Fußweg.
+/// Tipp auf den Namen oder aufs Männchen zeigt den Fußweg; zurück geht es per Wisch nach rechts.
 struct HaltSeite: View {
     var modell: HaltModell
     var umgebung: Umgebung
-    @Environment(\.dismiss) private var zurueck
     @Environment(Merkliste.self) private var merkliste
     @State private var gewaehlt: Abfahrt?
     @State private var merkName = ""
@@ -34,29 +33,6 @@ struct HaltSeite: View {
             .padding(.bottom, 30)
         }
         .toolbar(.hidden, for: .navigationBar)
-        .safeAreaInset(edge: .bottom, spacing: 0) {
-            HStack {
-                Button { zurueck() } label: {
-                    Image(systemName: "chevron.left")
-                        .font(.body.weight(.semibold))
-                        .frame(width: 50, height: 50)
-                        .contentShape(Circle())
-                }
-                .buttonStyle(.plain)
-                .glassEffect(.regular.interactive(), in: Circle())
-                .accessibilityLabel("Zurück")
-                Spacer()
-            }
-            .padding(.horizontal, 20)
-            .padding(.bottom, 6)
-            .padding(.top, 20)
-            .background(alignment: .bottom) {
-                // Die Liste läuft sanft unter dem Knopf aus.
-                LinearGradient(colors: [Color(.systemBackground).opacity(0), Color(.systemBackground)],
-                               startPoint: .top, endPoint: UnitPoint(x: 0.5, y: 0.45))
-                    .ignoresSafeArea()
-            }
-        }
         .task {
             if modell.abfahrten.isEmpty || modell.ohneNetz { await modell.laden() }
         }

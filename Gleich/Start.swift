@@ -158,7 +158,8 @@ struct Haltestellenliste: View {
     var oeffnen: (String) -> Void
 
     var body: some View {
-        LokScroll(laedt: umgebung.laedt || umgebung.standort.erlaubnis == .notDetermined) {
+        // Die Haltestellen stehen über der Mittellinie: die nächste zuoberst, die letzte direkt über der Linie.
+        LokScroll(laedt: umgebung.laedt || umgebung.standort.erlaubnis == .notDetermined, unten: true) {
             await umgebung.allesNeu()
         } inhalt: {
             VStack(alignment: .leading, spacing: 0) {
@@ -183,7 +184,7 @@ struct Haltestellenliste: View {
                 }
             }
             .padding(.top, 8)
-            .padding(.bottom, 20)
+            .padding(.bottom, 14)
         }
         .animation(.smooth, value: umgebung.sichtbar.map(\.id))
     }
