@@ -64,25 +64,46 @@ final class HaltModell: Identifiable {
     }
 }
 
+/// Was beim letzten Mal in der Nähe war – damit die Haltestellen nach einem Neustart sofort dastehen,
+/// wenn man noch am selben Ort ist.
+private struct Nahbereich: Codable {
+    var breite: Double
+    var laenge: Double
+    var haltestellen: [Haltestelle]
+    var gehzeiten: [String: TimeInterval]
+    var ort: CLLocation { CLLocation(latitude: breite, longitude: laenge) }
+}
+
 /// Alles rund um „Wo bin ich, was fährt hier?“.
 @Observable
 final class Umgebung {
     let standort = Standort()
     let plaene = Planablage()
     var seiten: [HaltModell] = []
+    /// Die Lok tuckert – bis die Haltestellen dastehen. Die Abfahrten laden danach still weiter.
     var laedt = false
     var ohneNetz = false
     /// Die App war zu: Die Haltestellen bleiben verborgen, bis der neue Standort sagt,
-    /// ob sie noch stimmen – sonst stünde in Bochum noch „Feldstraße“.
-    var veraltet = false
+    /// ob sie noch stimmen – sonst stünde in Bochum noch „Feldstraße“. Am selben Ort sind sie sofort wieder da.
+    var veraltet = true
     /// Nächste Haltestelle weiter als 5 km weg.
     var jwd = false
     /// Echte Gehzeiten von Apple Karten (Sekunden je Haltestelle), vom Ort der letzten Haltestellensuche aus.
     private var gehzeiten: [String: TimeInterval] = [:]
     private var ortDerHaltestellen: CLLocation?
+    /// Läuft gerade ein Durchgang (auch das stille Nachladen der Abfahrten)?
+    private var beschaeftigt = false
     /// Kam während des Ladens ein neuer Auftrag (App kurz zu und wieder auf), wird danach noch einmal geladen –
     /// sonst blieben die Haltestellen verborgen, bis man von Hand neu lädt.
     private var nochmal = false
+
+    init() {
+        if let n = Ablage.lesen(Nahbereich.self, "nah") {
+            seiten = n.haltestellen.map(HaltModell.init)
+            gehzeiten = n.gehzeiten
+            ortDerHaltestellen = n.ort
+        }
+    }
 
     /// Ortsname, der in allen Haltestellennamen steckt („Potsdam, …“) – wird beim Anzeigen weggelassen.
     var ort: String? { Namen.ort(unter: seiten.map(\.halt.name)) }
@@ -99,13 +120,17 @@ final class Umgebung {
 
     /// Standort holen, bei Bedarf Haltestellen neu suchen, dann die Abfahrten aller Haltestellen laden.
     func allesNeu() async {
-        guard !laedt else {
-            nochmal = true
+        guard !beschaeftigt else {
+            // Nur nachholen, wenn die App zwischendurch zu war – sonst ist der laufende Durchgang frisch genug
+            // (und die Lok käme sonst ein zweites Mal).
+            if veraltet { nochmal = true }
             return
         }
+        beschaeftigt = true
         laedt = true
         defer {
             laedt = false
+            beschaeftigt = false
             if nochmal {
                 nochmal = false
                 Task { await allesNeu() }
@@ -113,35 +138,57 @@ final class Umgebung {
         }
         guard let ort = await standort.frisch() else { return }
         defer { Task { await netzplaene(bei: ort) } }
-        let weit = ortDerHaltestellen.map { $0.distance(from: ort) > 120 } ?? true
+        // Eine ungefähre Ortung schwankt etwas – erst wer wirklich woanders ist, bekommt neue Haltestellen.
+        let spielraum = max(120, min(ort.horizontalAccuracy, 200))
+        let weit = ortDerHaltestellen.map { $0.distance(from: ort) > spielraum } ?? true
         if weit && veraltet {
             // Woanders aufgemacht: Die alten Haltestellen verschwinden sofort.
             seiten = []
             jwd = false
         }
         veraltet = false
+        var vorab: Task<Void, Never>?
+        var vorgeladen: [HaltModell] = []
         if weit || seiten.isEmpty {
             do {
                 let alle = try await Fahrplan.kandidaten(bei: ort.coordinate)
+                // Die Auswahl nach Luftlinie liegt fast immer richtig: Deren Abfahrten laden schon,
+                // während Apple Karten noch die Fußwege rechnet.
+                let alt = Dictionary(seiten.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
+                vorgeladen = Fahrplan.auswaehlen(alle) { Fahrplan.gehzeit(von: ort, zu: $0) }
+                    .map { alt[$0.id] ?? HaltModell($0) }
+                let schonDa = vorgeladen
+                vorab = Task { await Umgebung.laden(schonDa) }
                 gehzeiten = await Gehwege.zeiten(von: ort, zu: Gehwege.auswahl(alle, um: ort))
                 let liste = Fahrplan.auswaehlen(alle) { gehzeit(zu: $0, von: ort) }
                 ortDerHaltestellen = ort
                 ohneNetz = false
                 jwd = (liste.first?.ort.distance(from: ort) ?? .infinity) > Fahrplan.jwdMeter
                 if liste.map(\.id) != seiten.map(\.id) {
-                    let alt = Dictionary(seiten.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
-                    seiten = liste.map { alt[$0.id] ?? HaltModell($0) }
+                    let bekannt = Dictionary((seiten + vorgeladen).map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
+                    seiten = liste.map { bekannt[$0.id] ?? HaltModell($0) }
                 }
+                Ablage.schreiben(Nahbereich(breite: ort.coordinate.latitude, laenge: ort.coordinate.longitude,
+                                            haltestellen: liste, gehzeiten: gehzeiten), "nah")
             } catch {
                 ohneNetz = true
             }
         }
-        // Abfahrten aller Haltestellen im Hintergrund – beim Antippen sind sie schon da.
-        await withTaskGroup(of: Void.self) { gruppe in
-            for m in seiten { gruppe.addTask { await m.laden() } }
-        }
+        // Die Haltestellen stehen – die Lok darf abfahren. Die Abfahrten laden im Hintergrund weiter,
+        // beim Antippen sind sie dann schon da.
+        laedt = false
+        let rest = seiten.filter { m in !vorgeladen.contains { $0 === m } }
+        await Umgebung.laden(rest)
+        await vorab?.value
         if let erste = seiten.first { ohneNetz = erste.ohneNetz }
         WidgetCenter.shared.reloadAllTimelines()
+    }
+
+    /// Abfahrten mehrerer Haltestellen gleichzeitig laden.
+    private static func laden(_ modelle: [HaltModell]) async {
+        await withTaskGroup(of: Void.self) { gruppe in
+            for m in modelle { gruppe.addTask { await m.laden() } }
+        }
     }
 
     /// Netzpläne für den Verbund und den Ort, an dem man gerade ist.

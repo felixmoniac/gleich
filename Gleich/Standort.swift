@@ -16,7 +16,9 @@ final class Standort: NSObject, CLLocationManagerDelegate {
         erlaubnis = manager.authorizationStatus
         super.init()
         manager.delegate = self
-        manager.desiredAccuracy = kCLLocationAccuracyNearestTenMeters
+        // Auf 100 m genau reicht für „welche Haltestellen sind in der Nähe“ – und kommt meist in einer Sekunde
+        // statt nach mehreren, weil das iPhone dafür nicht erst auf GPS warten muss.
+        manager.desiredAccuracy = kCLLocationAccuracyHundredMeters
         ort = manager.location ?? Ablage.letzterOrt
     }
 
@@ -34,6 +36,13 @@ final class Standort: NSObject, CLLocationManagerDelegate {
             }
         }
         guard erlaubt else { return nil }
+        // Kennt das iPhone schon einen frischen Standort (keine zwei Minuten alt), gilt der sofort.
+        if let l = manager.location, -l.timestamp.timeIntervalSinceNow < 120,
+           l.horizontalAccuracy >= 0, l.horizontalAccuracy <= 150 {
+            ort = l
+            Ablage.letzterOrt = l
+            return l
+        }
         let neu: CLLocation? = await withCheckedContinuation { c in
             warten.append(c)
             if warten.count == 1 { manager.requestLocation() }

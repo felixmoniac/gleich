@@ -5,7 +5,7 @@ import MapKit
 /// Luftlinie kennt keine Seen und keine Brücken; Apple Karten schon (so gut die Karte eben ist).
 enum Gehwege {
     /// Gehzeit in Sekunden je Haltestelle. Was nicht innerhalb der Frist beantwortet ist, fehlt – dann gilt die Luftlinie.
-    static func zeiten(von start: CLLocation, zu halte: [Haltestelle], frist: Double = 8) async -> [String: TimeInterval] {
+    static func zeiten(von start: CLLocation, zu halte: [Haltestelle], frist: Double = 4) async -> [String: TimeInterval] {
         await withTaskGroup(of: [String: TimeInterval]?.self) { rennen in
             rennen.addTask { await alle(von: start, zu: halte) }
             rennen.addTask {

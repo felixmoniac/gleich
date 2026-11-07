@@ -123,6 +123,8 @@ struct LokScroll<Inhalt: View>: View {
     @State private var weg: CGFloat = 0
     @State private var start = Date.distantPast
     @State private var lokBreite: CGFloat = 400
+    /// Immer der neueste Stand von `laedt` – auch in Abläufen, die schon vor einer Weile gestartet sind.
+    @State private var laedtJetzt = false
 
     /// Ab hier lädt Loslassen neu.
     private let schwelle: CGFloat = 100
@@ -173,6 +175,7 @@ struct LokScroll<Inhalt: View>: View {
                 }
             }
             .onChange(of: laedt, initial: true) { _, l in
+                laedtJetzt = l
                 if l, phase == .ruhe {
                     weg = 0
                     start = .now
@@ -191,17 +194,17 @@ struct LokScroll<Inhalt: View>: View {
         withAnimation(.snappy) { phase = .laden }
         Task {
             await aktualisieren()
-            await MainActor.run { if !laedt { abfahren(breite: lokBreite) } }
+            await MainActor.run { if !laedtJetzt { abfahren(breite: lokBreite) } }
         }
     }
 
     private func abfahren(breite: CGFloat) {
         guard phase == .laden else { return }
-        // Die Lok soll man wenigstens kurz tuckern sehen.
-        let rest = max(0, 0.9 - Date.now.timeIntervalSince(start))
+        // Die Lok soll man wenigstens kurz tuckern sehen – aber niemand soll auf sie warten.
+        let rest = max(0, 0.4 - Date.now.timeIntervalSince(start))
         Task { @MainActor in
             try? await Task.sleep(for: .seconds(rest))
-            guard phase == .laden, !laedt else { return }
+            guard phase == .laden, !laedtJetzt else { return }
             phase = .abfahrt
             withAnimation(.easeIn(duration: 0.75)) { weg = breite / 2 + 60 }
             try? await Task.sleep(for: .seconds(0.75))
