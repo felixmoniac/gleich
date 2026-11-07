@@ -176,15 +176,16 @@ struct PDFAnsicht: UIViewRepresentable {
 /// Kurze Anleitung – auf der Übersicht und beim ersten Start.
 struct AnleitungKasten: View {
     private let punkte: [(String?, String)] = [
-        (nil, "Oben die nächste Haltestelle, darunter was abfährt."),
+        (nil, "Oben die Haltestellen in deiner Nähe, die nächste zuerst."),
+        ("Haltestelle antippen:", "ihre Abfahrten."),
         ("Rot:", "verspätet, das ist die echte Abfahrt."),
         ("Blass:", "zu Fuß wohl nicht mehr zu schaffen."),
-        ("Nach links wischen:", "andere Haltestellen in der Nähe."),
-        ("Nach rechts wischen:", "diese Übersicht."),
-        ("Runterziehen:", "aktualisieren."),
         ("Abfahrt antippen:", "alle weiteren Halte."),
-        ("Haltestellenname antippen:", "Fußweg dorthin."),
-        ("Lange drücken:", "Ort merken."),
+        ("Haltestellenname oder Männchen antippen:", "Fußweg dorthin in Apple Karten."),
+        ("Nach rechts wischen:", "zurück – und auf der Startseite diese Übersicht."),
+        ("Runterziehen:", "aktualisieren."),
+        ("Zuhause, Arbeit, +:", "Verbindung dorthin; lange drücken wählt einen anderen Ort."),
+        ("Haltestellenname lange drücken:", "Ort merken."),
         ("Verbundname antippen:", "andere Netzpläne wählen."),
         ("Wohin?", "Verbindungen von hier; die Uhr daneben wählt die Abfahrtszeit."),
     ]

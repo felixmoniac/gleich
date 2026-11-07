@@ -80,6 +80,9 @@ final class Umgebung {
     /// Echte Gehzeiten von Apple Karten (Sekunden je Haltestelle), vom Ort der letzten Haltestellensuche aus.
     private var gehzeiten: [String: TimeInterval] = [:]
     private var ortDerHaltestellen: CLLocation?
+    /// Kam während des Ladens ein neuer Auftrag (App kurz zu und wieder auf), wird danach noch einmal geladen –
+    /// sonst blieben die Haltestellen verborgen, bis man von Hand neu lädt.
+    private var nochmal = false
 
     /// Ortsname, der in allen Haltestellennamen steckt („Potsdam, …“) – wird beim Anzeigen weggelassen.
     var ort: String? { Namen.ort(unter: seiten.map(\.halt.name)) }
@@ -96,9 +99,18 @@ final class Umgebung {
 
     /// Standort holen, bei Bedarf Haltestellen neu suchen, dann die Abfahrten aller Haltestellen laden.
     func allesNeu() async {
-        guard !laedt else { return }
+        guard !laedt else {
+            nochmal = true
+            return
+        }
         laedt = true
-        defer { laedt = false }
+        defer {
+            laedt = false
+            if nochmal {
+                nochmal = false
+                Task { await allesNeu() }
+            }
+        }
         guard let ort = await standort.frisch() else { return }
         defer { Task { await netzplaene(bei: ort) } }
         let weit = ortDerHaltestellen.map { $0.distance(from: ort) > 120 } ?? true
