@@ -48,7 +48,7 @@ struct Lok: View {
     private static let strich = StrokeStyle(lineWidth: 1.8, lineCap: .round, lineJoin: .round)
 
     /// Die Lok selbst, ohne Dampf: fährt nach rechts (+x), Schornstein oben (−y), Räder unten bei y ≈ 54.
-    /// Auch die Katze in der Suche nimmt genau diese Lok.
+    /// Auch der Zug im Kreis in der Suche nimmt genau diese Lok.
     static func koerper(_ ctx: GraphicsContext, winkel: Double) {
         var p = Path()
         // Kessel mit runder Rauchkammer vorne

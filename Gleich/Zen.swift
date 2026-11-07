@@ -149,7 +149,7 @@ enum Zen {
         "Aussteigen ist auch eine Kunst.",
         "Ein Rauchring steigt auf und weiß nicht, wohin. Er ist trotzdem schön.",
         "Wer den Rauch fangen will, hat nur Luft in der Hand.",
-        "Die Katze jagt die Lok. Die Lok jagt die Zeit. Die Zeit lächelt.",
+        "Die Lok jagt den letzten Wagen. Der letzte Wagen jagt die Lok. Die Zeit lächelt.",
         "Im Kreis zu laufen ist auch ein Weg – nur ein ehrlicher.",
         "Wer sich selbst hinterherläuft, holt sich nie ein.",
         "Jede Runde ist anders, auch wenn der Kreis gleich ist.",

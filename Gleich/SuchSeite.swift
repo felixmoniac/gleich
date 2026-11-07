@@ -84,8 +84,8 @@ struct SuchSeite: View {
                     }
                 }
                 if suchtNoch {
-                    // Solange noch nichts gesucht ist: die Katze jagt ihren Lok-Schwanz.
-                    KatzeImKreis(rauch: rauch)
+                    // Solange noch nichts gesucht ist: ein kleiner Zug fährt im Kreis.
+                    ZugImKreis(rauch: rauch)
                         .frame(maxWidth: .infinity)
                         .padding(.top, gemerkte.isEmpty ? 150 : 40)
                 }
