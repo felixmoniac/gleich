@@ -1,22 +1,21 @@
 import SwiftUI
 
 /// Eine Haltestelle: Name, bei Bedarf Symbolreihe, darunter die Abfahrten.
+/// Tipp auf den Namen oder aufs Männchen zeigt den Fußweg.
 struct HaltSeite: View {
     var modell: HaltModell
     var umgebung: Umgebung
+    @Environment(\.dismiss) private var zurueck
     @Environment(Merkliste.self) private var merkliste
     @State private var gewaehlt: Abfahrt?
     @State private var merkName = ""
     @State private var merktGerade = false
 
-    private var ort: String? {
-        Namen.ort(unter: umgebung.seiten.map(\.halt.name))
-    }
+    private var ort: String? { umgebung.ort }
 
     var body: some View {
         LokScroll(laedt: modell.laedt || umgebung.laedt) {
-            await umgebung.allesNeu()
-            if umgebung.aktuell?.id != modell.id { await modell.laden() }
+            await modell.laden()
         } inhalt: {
             VStack(alignment: .leading, spacing: 0) {
                 kopf
@@ -33,6 +32,30 @@ struct HaltSeite: View {
                 .padding(.top, 14)
             }
             .padding(.bottom, 30)
+        }
+        .toolbar(.hidden, for: .navigationBar)
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            HStack {
+                Button { zurueck() } label: {
+                    Image(systemName: "chevron.left")
+                        .font(.body.weight(.semibold))
+                        .frame(width: 50, height: 50)
+                        .contentShape(Circle())
+                }
+                .buttonStyle(.plain)
+                .glassEffect(.regular.interactive(), in: Circle())
+                .accessibilityLabel("Zurück")
+                Spacer()
+            }
+            .padding(.horizontal, 20)
+            .padding(.bottom, 6)
+            .padding(.top, 20)
+            .background(alignment: .bottom) {
+                // Die Liste läuft sanft unter dem Knopf aus.
+                LinearGradient(colors: [Color(.systemBackground).opacity(0), Color(.systemBackground)],
+                               startPoint: .top, endPoint: UnitPoint(x: 0.5, y: 0.45))
+                    .ignoresSafeArea()
+            }
         }
         .task {
             if modell.abfahrten.isEmpty || modell.ohneNetz { await modell.laden() }
@@ -58,7 +81,7 @@ struct HaltSeite: View {
     private var kopf: some View {
         HStack(alignment: .firstTextBaseline, spacing: 10) {
             Button {
-                fussweg()
+                Fussweg.zeigen(modell.halt)
             } label: {
                 Text(Namen.kurz(modell.halt.name, ort: ort))
                     .font(.system(size: 32, weight: .bold, design: .rounded))
@@ -67,23 +90,14 @@ struct HaltSeite: View {
             }
             .buttonStyle(.plain)
             .contextMenu {
-                Button("Fußweg", systemImage: "figure.walk") { fussweg() }
+                Button("Fußweg", systemImage: "figure.walk") { Fussweg.zeigen(modell.halt) }
                 Button("Merken", systemImage: "star") {
                     merkName = Namen.kurz(modell.halt.name)
                     merktGerade = true
                 }
                 Section("Daten: Transitous\(modell.halt.quelle == .vbb ? " · VBB" : "")") { }
             }
-            let fuss = Int((umgebung.gehzeit(zu: modell.halt) / 60).rounded())
-            if fuss > 1 {
-                HStack(spacing: 3) {
-                    Image(systemName: "figure.walk")
-                    Text("\(fuss) Min")
-                }
-                .font(.subheadline.weight(.medium))
-                .foregroundStyle(.secondary)
-                .fixedSize()
-            }
+            Fussknopf(halt: modell.halt, minuten: umgebung.gehzeit(zu: modell.halt))
             if modell.ohneNetz || umgebung.ohneNetz {
                 Image(systemName: "icloud.slash")
                     .font(.title3)
@@ -128,12 +142,6 @@ struct HaltSeite: View {
         }
     }
 
-    private func fussweg() {
-        let h = modell.halt
-        if let url = URL(string: "maps://?daddr=\(h.breite),\(h.laenge)&dirflg=w") {
-            UIApplication.shared.open(url)
-        }
-    }
 }
 
 struct AbfahrtZeile: View {

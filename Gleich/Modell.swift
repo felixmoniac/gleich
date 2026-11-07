@@ -70,25 +70,31 @@ final class Umgebung {
     let standort = Standort()
     let plaene = Planablage()
     var seiten: [HaltModell] = []
-    var seite: String?
     var laedt = false
     var ohneNetz = false
+    /// Die App war zu: Die Haltestellen bleiben verborgen, bis der neue Standort sagt,
+    /// ob sie noch stimmen – sonst stünde in Bochum noch „Feldstraße“.
+    var veraltet = false
     /// Nächste Haltestelle weiter als 5 km weg.
     var jwd = false
     /// Echte Gehzeiten von Apple Karten (Sekunden je Haltestelle), vom Ort der letzten Haltestellensuche aus.
     private var gehzeiten: [String: TimeInterval] = [:]
     private var ortDerHaltestellen: CLLocation?
 
-    init() {
-        if let alt = Ablage.lesen([Haltestelle].self, "haltestellen") {
-            seiten = alt.map(HaltModell.init)
-            seite = seiten.first?.id
-        }
+    /// Ortsname, der in allen Haltestellennamen steckt („Potsdam, …“) – wird beim Anzeigen weggelassen.
+    var ort: String? { Namen.ort(unter: seiten.map(\.halt.name)) }
+
+    /// Die Haltestellen, die man sehen darf.
+    var sichtbar: [HaltModell] { veraltet ? [] : seiten }
+
+    func modell(_ id: String) -> HaltModell? { seiten.first { $0.id == id } }
+
+    /// Beim Schließen der App: alte Haltestellen nicht mehr zeigen.
+    func zurueckgelassen() {
+        veraltet = true
     }
 
-    var aktuell: HaltModell? { seiten.first { $0.id == seite } }
-
-    /// Standort holen, bei Bedarf Haltestellen neu suchen, dann die sichtbare Seite laden.
+    /// Standort holen, bei Bedarf Haltestellen neu suchen, dann die Abfahrten aller Haltestellen laden.
     func allesNeu() async {
         guard !laedt else { return }
         laedt = true
@@ -96,6 +102,12 @@ final class Umgebung {
         guard let ort = await standort.frisch() else { return }
         defer { Task { await netzplaene(bei: ort) } }
         let weit = ortDerHaltestellen.map { $0.distance(from: ort) > 120 } ?? true
+        if weit && veraltet {
+            // Woanders aufgemacht: Die alten Haltestellen verschwinden sofort.
+            seiten = []
+            jwd = false
+        }
+        veraltet = false
         if weit || seiten.isEmpty {
             do {
                 let alle = try await Fahrplan.kandidaten(bei: ort.coordinate)
@@ -107,17 +119,16 @@ final class Umgebung {
                 if liste.map(\.id) != seiten.map(\.id) {
                     let alt = Dictionary(seiten.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
                     seiten = liste.map { alt[$0.id] ?? HaltModell($0) }
-                    seite = jwd ? "jwd" : seiten.first?.id
-                    Ablage.schreiben(liste, "haltestellen")
                 }
             } catch {
                 ohneNetz = true
             }
         }
-        if let a = aktuell {
-            await a.laden()
-            ohneNetz = a.ohneNetz
+        // Abfahrten aller Haltestellen im Hintergrund – beim Antippen sind sie schon da.
+        await withTaskGroup(of: Void.self) { gruppe in
+            for m in seiten { gruppe.addTask { await m.laden() } }
         }
+        if let erste = seiten.first { ohneNetz = erste.ohneNetz }
         WidgetCenter.shared.reloadAllTimelines()
     }
 
