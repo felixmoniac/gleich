@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Gleich</string>
+    <string name="widget_beschreibung">Die nächsten Abfahrten an der Haltestelle in deiner Nähe.</string>
+</resources>
