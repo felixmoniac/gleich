@@ -5,6 +5,8 @@ enum Schritt: Hashable {
     /// Abfahrten einer Haltestelle (nach ihrer Kennung).
     case halt(String)
     case fahrt(Fahrtwunsch)
+    /// Die festgehaltene Verbindung.
+    case fest
 }
 
 struct Start: View {
@@ -21,6 +23,7 @@ struct Start: View {
     /// Höhe des ganzen Bildschirms – damit der Trenner genau in der Mitte sitzt.
     @State private var bildschirm: CGFloat = 0
     @Environment(\.scenePhase) private var szene
+    private var festhalter: Festhalter { .geteilt }
 
     var body: some View {
         NavigationStack(path: $pfad) {
@@ -34,6 +37,8 @@ struct Start: View {
                         }
                     case .fahrt(let w):
                         VerbindungenSeite(ziel: w.ziel, ab: w.ab, standort: umgebung.standort)
+                    case .fest:
+                        FestSeite()
                     }
                 }
         }
@@ -64,9 +69,21 @@ struct Start: View {
         }
         .onChange(of: szene, initial: true) { _, s in
             switch s {
-            case .active: Task { await umgebung.allesNeu() }
-            case .background: umgebung.zurueckgelassen()
+            case .active:
+                Task { await umgebung.allesNeu() }
+                Task { await festhalter.auffrischen() }
+            case .background:
+                umgebung.zurueckgelassen()
+                festhalter.planen()
             default: break
+            }
+        }
+        // Solange die App offen ist, frischt die festgehaltene Verbindung jede Minute auf.
+        .task(id: festhalter.fest?.verbindung.kennung) {
+            guard festhalter.fest != nil else { return }
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(60))
+                await festhalter.auffrischen()
             }
         }
         // Ist eine geöffnete Haltestelle nicht mehr in der Nähe, geht es zurück zur Startseite.
@@ -122,8 +139,18 @@ struct Start: View {
             let mitte = bildschirm > 0 ? bildschirm / 2 - oben : geo.size.height / 2
             let obenHoehe = min(max(mitte, 120), geo.size.height - 120)
             VStack(spacing: 0) {
-                Haltestellenliste(umgebung: umgebung) { pfad = [.halt($0)] }
-                    .frame(height: obenHoehe)
+                VStack(spacing: 0) {
+                    // Die festgehaltene Verbindung steht ganz oben, die Haltestellen rücken darunter.
+                    if let f = festhalter.fest {
+                        FestKarte(fest: f) { pfad = [.fest] }
+                            .padding(.horizontal, 16)
+                            .padding(.top, 4)
+                            .transition(.move(edge: .top).combined(with: .opacity))
+                    }
+                    Haltestellenliste(umgebung: umgebung) { pfad = [.halt($0)] }
+                }
+                .frame(height: obenHoehe)
+                .animation(.snappy, value: festhalter.fest == nil)
                 Ortsraster { ziel in
                     pfad = [.fahrt(Fahrtwunsch(ziel: ziel, ab: nil))]
                 } festlegen: { name in

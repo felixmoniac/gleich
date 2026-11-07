@@ -6,6 +6,11 @@ struct GleichApp: App {
         WindowGroup {
             Start()
         }
+        // Weckt iOS die App kurz im Hintergrund, holt sie die neuesten Zeiten der festgehaltenen Verbindung.
+        .backgroundTask(.appRefresh(Festhalter.auftrag)) {
+            await Festhalter.geteilt.auffrischen()
+            await Festhalter.geteilt.planen()
+        }
     }
 }
 

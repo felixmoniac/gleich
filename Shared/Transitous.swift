@@ -140,6 +140,39 @@ enum Transitous {
         return alle
     }
 
+    /// Alle Halte einer Fahrt mit geplanten und – falls bekannt – tatsächlichen Zeiten.
+    struct HaltZeit {
+        var name: String
+        var anGeplant: Date?
+        var an: Date?
+        var abGeplant: Date?
+        var ab: Date?
+        var gleis: String?
+        var faelltAus: Bool
+    }
+
+    static func halte(fahrt: String) async throws -> [HaltZeit] {
+        let j = try await Netz.json(basis, "/v5/trip", ["tripId": fahrt]) as? [String: Any] ?? [:]
+        guard let l = j.liste("legs").first(where: { $0.text("mode") != "WALK" }) else { return [] }
+        let echt = l.wahr("realTime")
+        let weg = l.wahr("cancelled") || l.wahr("tripCancelled")
+        var roh: [[String: Any]] = []
+        if let von = l.objekt("from") { roh.append(von) }
+        roh += l.liste("intermediateStops")
+        if let nach = l.objekt("to") { roh.append(nach) }
+        return roh.map { h in
+            HaltZeit(
+                name: h.text("name") ?? "",
+                anGeplant: h.datum("scheduledArrival"),
+                an: echt ? h.datum("arrival") : nil,
+                abGeplant: h.datum("scheduledDeparture"),
+                ab: echt ? h.datum("departure") : nil,
+                gleis: h.text("track"),
+                faelltAus: weg || h.wahr("cancelled")
+            )
+        }
+    }
+
     // MARK: Ziele suchen
 
     static func suchen(_ text: String, nahe ort: CLLocationCoordinate2D?) async throws -> [Ziel] {

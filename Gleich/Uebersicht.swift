@@ -185,6 +185,7 @@ struct AnleitungKasten: View {
         ("Nach rechts wischen:", "zurück – und auf der Startseite diese Übersicht."),
         ("Runterziehen:", "aktualisieren."),
         ("Zuhause, Arbeit, +:", "Verbindung dorthin; lange drücken wählt einen anderen Ort."),
+        ("Verbindung aufklappen, Festhalten:", "bleibt oben auf der Startseite und auf dem Sperrbildschirm; lange drücken lässt sie los."),
         ("Haltestellenname lange drücken:", "Ort merken."),
         ("Verbundname antippen:", "andere Netzpläne wählen."),
         ("Wohin?", "Verbindungen von hier; die Uhr daneben wählt die Abfahrtszeit."),

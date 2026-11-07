@@ -185,7 +185,10 @@ struct GleichWidget: Widget {
 
 @main
 struct GleichWidgets: WidgetBundle {
-    var body: some Widget { GleichWidget() }
+    var body: some Widget {
+        GleichWidget()
+        FahrtLive()
+    }
 }
 
 #Preview(as: .systemSmall) { GleichWidget() } timeline: { Eintrag.beispiel }

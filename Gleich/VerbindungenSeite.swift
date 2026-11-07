@@ -38,7 +38,7 @@ struct VerbindungenSeite: View {
 
                 LazyVStack(spacing: 0) {
                     ForEach(liste) { v in
-                        VerbindungZeile(verbindung: v, offen: offen == v.id) {
+                        VerbindungZeile(verbindung: v, ziel: ziel, offen: offen == v.id) {
                             withAnimation(.snappy) { offen = offen == v.id ? nil : v.id }
                         }
                     }
@@ -123,10 +123,13 @@ struct VerbindungenSeite: View {
 
 struct VerbindungZeile: View {
     var verbindung: Verbindung
+    var ziel: Ziel
     var offen: Bool
     var tippen: () -> Void
+    private var festhalter: Festhalter { .geteilt }
 
     var body: some View {
+        let fest = festhalter.istFest(verbindung)
         VStack(alignment: .leading, spacing: 0) {
             Button(action: tippen) {
                 kurz
@@ -135,11 +138,37 @@ struct VerbindungZeile: View {
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
+            .contextMenu {
+                if !verbindung.fahrten.isEmpty { festKnopf(fest) }
+            }
             if offen {
                 Schritte(verbindung: verbindung)
-                    .padding(.bottom, 14)
+                    .padding(.bottom, 8)
                     .transition(.opacity)
+                if !verbindung.fahrten.isEmpty {
+                    festKnopf(fest)
+                        .font(.subheadline.weight(.semibold))
+                        .buttonStyle(.plain)
+                        .padding(.horizontal, 16)
+                        .frame(height: 40)
+                        .glassEffect(.regular.interactive(), in: Capsule())
+                        .padding(.leading, 86)
+                        .padding(.bottom, 16)
+                        .transition(.opacity)
+                }
             }
+        }
+        .sensoryFeedback(.success, trigger: fest) { _, neu in neu }
+    }
+
+    /// Festhalten: Die Verbindung bleibt auf der Startseite und auf dem Sperrbildschirm.
+    private func festKnopf(_ fest: Bool) -> some View {
+        Button {
+            withAnimation(.snappy) {
+                if fest { festhalter.loslassen() } else { festhalter.festhalten(verbindung, ziel: ziel) }
+            }
+        } label: {
+            Label(fest ? "Loslassen" : "Festhalten", systemImage: fest ? "pin.slash" : "pin")
         }
     }
 
@@ -167,17 +196,24 @@ struct VerbindungZeile: View {
             }
         }
 
+        let nadel = Image(systemName: "pin.fill")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .opacity(festhalter.istFest(v) ? 1 : 0)
+
         return ViewThatFits(in: .horizontal) {
             HStack(spacing: 12) {
                 zeiten
                 linien
                 Spacer(minLength: 0)
+                nadel
             }
             VStack(alignment: .leading, spacing: 6) {
                 zeiten
                 linien
             }
             .frame(maxWidth: .infinity, alignment: .leading)
+            .overlay(alignment: .topTrailing) { nadel }
         }
     }
 }
@@ -209,7 +245,13 @@ struct Schritte: View {
     }
 
     @ViewBuilder private func fahrt(_ a: Abschnitt) -> some View {
-        zeile(zeit: a.ab, rot: a.abVerspaetet, name: a.von, gleis: a.gleis)
+        zeile(zeit: a.ab, rot: a.abVerspaetet || a.faelltAus, name: a.von, gleis: a.gleis)
+        if a.faelltAus {
+            Text("Fällt aus")
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(.red)
+                .padding(.leading, 86)
+        }
         Button {
             withAnimation(.snappy) {
                 if halteOffen.contains(a.id) { halteOffen.remove(a.id) } else { halteOffen.insert(a.id) }

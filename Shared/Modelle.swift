@@ -54,7 +54,7 @@ struct Abfahrt: Codable, Hashable, Identifiable {
     var verspaetet: Bool { (echt ?? geplant).timeIntervalSince(geplant) >= 60 }
 }
 
-struct Zwischenhalt: Hashable, Identifiable {
+struct Zwischenhalt: Codable, Hashable, Identifiable {
     var id: Int
     var name: String
     var geplant: Date?
@@ -68,7 +68,7 @@ struct Zwischenhalt: Hashable, Identifiable {
     }
 }
 
-struct Abschnitt: Hashable, Identifiable {
+struct Abschnitt: Codable, Hashable, Identifiable {
     var id: Int
     /// nil = Fußweg
     var linie: Linie?
@@ -83,6 +83,8 @@ struct Abschnitt: Hashable, Identifiable {
     var meter: Double?
     var fahrtID: String?
     var zwischenhalte: [Zwischenhalt]
+    /// Fällt die Fahrt aus? Wird beim Auffrischen einer festgehaltenen Verbindung bekannt.
+    var faelltAus = false
 
     var ab: Date { abEcht ?? abGeplant }
     var an: Date { anEcht ?? anGeplant }
@@ -91,9 +93,14 @@ struct Abschnitt: Hashable, Identifiable {
     var istFussweg: Bool { linie == nil }
 }
 
-struct Verbindung: Hashable, Identifiable {
+struct Verbindung: Codable, Hashable, Identifiable {
     var id: String
     var abschnitte: [Abschnitt]
+
+    /// Bleibt gleich, auch wenn die Verbindung neu geladen wird: welche Fahrten, zu welcher geplanten Zeit.
+    var kennung: String {
+        abschnitte.map { "\($0.fahrtID ?? "zu Fuß")@\(Int($0.abGeplant.timeIntervalSince1970))" }.joined(separator: "|")
+    }
 
     var fahrten: [Abschnitt] { abschnitte.filter { !$0.istFussweg } }
     var ab: Date { abschnitte.first?.ab ?? .now }
