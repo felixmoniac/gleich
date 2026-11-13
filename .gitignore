@@ -2,3 +2,4 @@ build/
 build-device/
 xcuserdata/
 .DS_Store
+build-store/
